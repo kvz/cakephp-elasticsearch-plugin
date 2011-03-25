@@ -106,11 +106,17 @@ be restricted the same way.
 
 ## Try it
 
+From your shell:
+
     # Fill index with tickets
     ./cake indexer fill Ticket
     
     # Try a ticket search from commandline
     ./cake indexer search Ticket Hello
+
+From your browser
+
+    http://www.example.com/tickets/searcher/q:*kevin*
 
 ## Todo
 

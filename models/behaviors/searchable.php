@@ -53,7 +53,6 @@ class SearchableBehavior extends ModelBehavior {
         set_include_path(get_include_path() . PATH_SEPARATOR . $path);
         spl_autoload_register(array('SearchableBehavior', 'autoloader'));
     }
-
     public static function autoloader ($className) {
         if (substr($className, 0, strlen(self::$_autoLoaderPrefix)) !== self::$_autoLoaderPrefix) {
             // Only autoload stuff for which we created this loader
@@ -70,7 +69,7 @@ class SearchableBehavior extends ModelBehavior {
         if ($create) {
             $Index->create(array(), true);
         }
-        $Type     = $Index->getType(Inflector::underscore($Model->alias));
+        $Type = $Index->getType(Inflector::underscore($Model->alias));
 
         return array($Index, $Type);
     }
@@ -242,7 +241,16 @@ class SearchableBehavior extends ModelBehavior {
         }
     }
 
-
+    /**
+     * Hack so you can now do highlights on '_all'.
+     * Elasticsearch does not support that syntax for highlights yet,
+     * just for queries.
+     *
+     * @param object $Model
+     * @param array  $val
+     * 
+     * @return array
+     */
     protected function _filter_highlight ($Model, $val) {
         if (($params = @$val['fields']['_all'])) {
             unset($val['fields']['_all']);
@@ -259,7 +267,6 @@ class SearchableBehavior extends ModelBehavior {
                     $val['fields'][$field] = $params;
                 }
             }
-            
         }
 
         return $val;
