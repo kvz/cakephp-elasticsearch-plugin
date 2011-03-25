@@ -43,6 +43,7 @@ class SearchableBehavior extends ModelBehavior {
     );
 
     protected $_Client;
+    protected $_fields = array();
     public $settings = array();
     public $errors = array();
 
@@ -156,6 +157,14 @@ class SearchableBehavior extends ModelBehavior {
         return $ids;
     }
 
+    /**
+     * Search. Arguments can be different wether the call is made like
+     *  - $Model->elastic_search, or
+     *  - $this->search
+     * that's why I eat&check away arguments with array_shift
+     *
+     * @return string
+     */
     public function search () {
         $args = func_get_args();
 
@@ -163,9 +172,10 @@ class SearchableBehavior extends ModelBehavior {
         if (is_object(@$args[0])) {
             $Model = array_shift($args);
         } else if (is_string(@$args[0])) {
-            $Model = array_shift($args);
-        } else {
-            return $this->err('First argument needs to be a model');
+            $Model = ClassRegistry::init(array_shift($args));
+        }
+        if (empty($Model)) {
+            return $this->err('First argument needs to be a valid model');
         }
 
         // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
@@ -178,20 +188,49 @@ class SearchableBehavior extends ModelBehavior {
             }
         }
 
-        if (!($query = @$args[0])) {
+        // No query!
+        if (!($query = array_shift($args))) {
             return;
         }
 
+        // queryParams
+        $queryParams = @$args[0]  ? array_shift($args) : array();
+
         // Get index
         list($Index, $Type) = $this->IndexType($Model);
-        
+
+
         // Search documents
         try {
             $Query = new Elastica_Query(new Elastica_Query_QueryString($query));
-            if (($highlightParams = $this->opt($Model, 'highlight'))) {
-                $Query->setHighlight($highlightParams);
+
+            if (array_key_exists('highlight', $queryParams)) {
+                $highlight = $queryParams['highlight'];
+            } else if (($opt = $this->opt($Model, 'highlight'))) {
+                $highlight = $opt;
             }
+
+            if (@$highlight) {
+                $Query->setHighlight($highlight);
+            }
+
+            $limit = @$queryParams['limit'];
+            if ($limit) {
+                $Query->setLimit($limit);
+            }
+
+            $filters = @$queryParams['filters'];
+            if ($filters) {
+                $Query->addFilter($filters);
+            }
+
+            $sort = @$queryParams['sort'];
+            if ($sort) {
+                $Query->setSort($sort);
+            }
+
             $ResultSet = $Type->search($Query);
+
             return $ResultSet;
         } catch (Exception $Exception) {
             $msg = $Exception->getMessage();
@@ -201,6 +240,29 @@ class SearchableBehavior extends ModelBehavior {
 
             return $msg;
         }
+    }
+
+
+    protected function _filter_highlight ($Model, $val) {
+        if (($params = @$val['fields']['_all'])) {
+            unset($val['fields']['_all']);
+
+            if (!array_key_exists($Model->alias, $this->_fields)) {
+                $this->_fields[$Model->alias] = false;
+                if (($ResultSet = $this->search($Model, '*', array('limit' => 1))) && ($results = $ResultSet->getResults()) && ($result = @$results[0])) {
+                    $this->_fields[$Model->alias] = array_keys($result->getData());
+                }
+            }
+
+            if (is_array($this->_fields[$Model->alias])) {
+                foreach ($this->_fields[$Model->alias] as $field) {
+                    $val['fields'][$field] = $params;
+                }
+            }
+            
+        }
+
+        return $val;
     }
 
     public function enabled ($Model, $method) {
@@ -267,11 +329,6 @@ class SearchableBehavior extends ModelBehavior {
         }
         return join(', ', $arr);
     }
-
-    protected function _filter_highlight ($Model, $val) {
-        return $val;
-    }
-
 
     public function opt () {
         $args  = func_get_args();

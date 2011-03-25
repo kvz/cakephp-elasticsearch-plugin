@@ -24,6 +24,10 @@ class SearcherComponent extends Object {
             return $this->err($Model, 'Error while doing search: %s', $ResultSet);
         }
 
+        if (!$ResultSet) {
+            return $this->err($Model, 'Received an invalid ResultSet: %s', $ResultSet);
+        }
+
         $response = array(
             'message' => 'OK',
             'count' => $ResultSet->count(),
