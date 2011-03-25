@@ -24,6 +24,10 @@ class SearchableBehavior extends ModelBehavior {
             'pre_tags' => array('<em class="highlight">'),
             'post_tags' => array('</em>'),
             'fields' => array(
+                '_all' => array(
+                    'fragment_size' => 200,
+                    'number_of_fragments' => 1,
+                ),
             ),
         ),
         'debug_traces' => false,
@@ -60,12 +64,14 @@ class SearchableBehavior extends ModelBehavior {
         include($path);
     }
 
-    public function getIndex ($Model, $create = false) {
+    public function IndexType ($Model, $create = false) {
         $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
         if ($create) {
             $Index->create(array(), true);
         }
-        return $Index;
+        $Type     = $Index->getType(Inflector::underscore($Model->alias));
+
+        return array($Index, $Type);
     }
 
     public function Client () {
@@ -121,9 +127,7 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Create index
-        $Index    = $this->getIndex($Model, true);
-        $typeName = Inflector::underscore($Model->alias);
-        $Type     = $Index->getType($typeName);
+        list($Index, $Type) = $this->IndexType($Model, true);
 
         // Get records
         $Model->Behaviors->attach('Containable');
@@ -158,6 +162,8 @@ class SearchableBehavior extends ModelBehavior {
         // Strip model from args if needed
         if (is_object(@$args[0])) {
             $Model = array_shift($args);
+        } else if (is_string(@$args[0])) {
+            $Model = array_shift($args);
         } else {
             return $this->err('First argument needs to be a model');
         }
@@ -177,9 +183,7 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Get index
-        $Index    = $this->getIndex($Model, false);
-        $typeName = Inflector::underscore($Model->alias);
-        $Type     = $Index->getType($typeName);
+        list($Index, $Type) = $this->IndexType($Model);
         
         // Search documents
         try {
@@ -264,6 +268,11 @@ class SearchableBehavior extends ModelBehavior {
         return join(', ', $arr);
     }
 
+    protected function _filter_highlight ($Model, $val) {
+        return $val;
+    }
+
+
     public function opt () {
         $args  = func_get_args();
 
@@ -285,17 +294,28 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         $count = count($args);
+        $key   = @$args[0];
+        $val   = @$args[1];
         if ($count > 1) {
-            $this->settings[$Model->alias][$args[0]] = $args[1];
+            $this->settings[$Model->alias][$key] = $val;
         } else if ($count > 0) {
-            if (!array_key_exists($args[0], $this->settings[$Model->alias])) {
+            if (!array_key_exists($key, $this->settings[$Model->alias])) {
                 return $this->err(
                     $Model,
                     'Option %s was not set',
-                    $args[0]
+                    $key
                 );
             }
-            return $this->settings[$Model->alias][$args[0]];
+
+            $val = $this->settings[$Model->alias][$key];
+            
+            // Filter with callback
+            $cb = array($this, '_filter_' . $key);
+            if (method_exists($cb[0], $cb[1])) {
+                $val = call_user_func($cb, $Model, $val);
+            }
+
+            return $val;
         } else {
             return $this->err(
                 $Model,
