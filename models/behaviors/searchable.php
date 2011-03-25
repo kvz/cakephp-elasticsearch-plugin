@@ -251,7 +251,9 @@ class SearchableBehavior extends ModelBehavior {
                 $Query->setHighlight($highlight);
             }
 
-            $limit = @$queryParams['limit'];
+            if (!($limit = @$queryParams['limit'])) {
+                $limit = 1000;
+            }
             if ($limit) {
                 $Query->setLimit($limit);
             }
