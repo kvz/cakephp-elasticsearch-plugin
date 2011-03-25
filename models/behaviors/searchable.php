@@ -15,6 +15,7 @@ class SearchableBehavior extends ModelBehavior {
     public $mapMethods = array(
         '/elastic_search_opt/' => 'opt',
         '/elastic_search/' => 'search',
+        '/elastic_index/' => 'index',
     );
     
     protected $_default = array(
@@ -22,18 +23,16 @@ class SearchableBehavior extends ModelBehavior {
             'pre_tags' => array('<em class="highlight">'),
             'post_tags' => array('</em>'),
             'fields' => array(
-                'TicketResponse/0/content' => array(
-                    'fragment_size' => 200,
-                    'number_of_fragments' => 1,
-                ),
             ),
         ),
+        'debug_traces' => false,
         'searcher_enabled' => true,
         'searcher_action' => 'searcher',
         'searcher_param' => 'q',
         'searcher_serializer' => 'json_encode',
-        'autoupdate' => false,
-        'index' => array(),
+        'auto_update' => false,
+        'index_find_params' => array(),
+        'index_name' => 'main',
         'error_handler' => 'php',
         'want_objects' => false,
     );
@@ -72,31 +71,32 @@ class SearchableBehavior extends ModelBehavior {
     }
 
     public function beforeSave ($Model) {
-        if ($this->opt($Model, 'autoupdate')) {
-            prd('x');
+        if ($this->opt($Model, 'auto_update')) {
+            prd('@todo');
         }
         return true;
     }
 
     public function afterFind ($Model, $results, $primary) {
-        if ($this->opt($Model, 'autoupdate')) {
-            prd('x');
+        if ($this->opt($Model, 'auto_update')) {
+            prd('@todo');
         }
         return $results;
     }
 
-    public function search () {
+
+    public function index () {
         $args = func_get_args();
 
         // Strip model from args if needed
-        if (is_object($args[0])) {
+        if (is_object(@$args[0])) {
             $Model = array_shift($args);
         } else {
             return $this->err('First argument needs to be a model');
         }
 
         // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
-        if (is_string($args[0])) {
+        if (is_string(@$args[0])) {
             foreach ($this->mapMethods as $pattern => $meth) {
                 if (preg_match($pattern, $args[0])) {
                     $method = array_shift($args);
@@ -105,25 +105,82 @@ class SearchableBehavior extends ModelBehavior {
             }
         }
 
+        // Bam
+        if (!($indexParams = $this->opt($Model, 'index_find_params'))) {
+            $indexParams = array();
+        }
+
+        // Setup index
+        $typeName = Inflector::underscore($Model->alias);
+        $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
+        $Index->create(array(), true);
+        $Type = $Index->getType($typeName);
+
+        // Get records
+        $Model->Behaviors->attach('Containable');
+        $results = $Model->find('all', $indexParams);
+
+        // Add documents
+        $ids = array();
+        foreach ($results as $result) {
+            $id    = $result[$Model->alias][$Model->primaryKey];
+            $ids[] = $id;
+            $Doc   = new Elastica_Document($id, Set::flatten($result, '/'));
+            $Type->addDocument($Doc);
+        }
+
+        // Index needs a moment to be updated
+        $Index->refresh();
+
+        return $ids;
+    }
+
+    public function search () {
+        $args = func_get_args();
+
+        // Strip model from args if needed
+        if (is_object(@$args[0])) {
+            $Model = array_shift($args);
+        } else {
+            return $this->err('First argument needs to be a model');
+        }
+
+        // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
+        if (is_string(@$args[0])) {
+            foreach ($this->mapMethods as $pattern => $meth) {
+                if (preg_match($pattern, $args[0])) {
+                    $method = array_shift($args);
+                    break;
+                }
+            }
+        }
 
         if (!($query = @$args[0])) {
             return;
         }
 
-        $indexName = Inflector::tableize($Model->alias);
-        $typeName  = Inflector::underscore($Model->alias);
-
-        $Index = $this->Client()->getIndex($indexName);
-        $Type  = $Index->getType($typeName);
-        $Query = new Elastica_Query(new Elastica_Query_QueryString($query));
-
-        if (($highlightParams = $this->opt($Model, 'highlight'))) {
-            $Query->setHighlight($highlightParams);
-        }
-
-        $ResultSet = $Type->search($Query);
+        // Setup index
+        $typeName = Inflector::underscore($Model->alias);
+        $Index    = $this->Client()->getIndex($this->opt($Model, 'index_name'));
+        $Type     = $Index->getType($typeName . '-');
         
-        return $ResultSet;
+        // Search documents
+
+        try {
+            $Query = new Elastica_Query(new Elastica_Query_QueryString($query));
+            if (($highlightParams = $this->opt($Model, 'highlight'))) {
+                $Query->setHighlight($highlightParams);
+            }
+            $ResultSet = $Type->search($Query);
+            return $ResultSet;
+        } catch (Exception $Exception) {
+            $msg = $Exception->getMessage();
+            if ($this->opt($Model, 'debug_traces')) {
+                $msg .= ' (' . $Exception->getTraceAsString() . ')';
+            }
+
+            return $msg;
+        }
     }
 
     public function setup ($Model, $settings = array()) {

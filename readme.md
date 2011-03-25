@@ -51,11 +51,13 @@ app/models/ticket.php (full example)
 
     public $actsAs = array(
         'Elasticsearch.Searchable' => array(
+            'debug_traces' => false,
             'searcher_enabled' => false,
             'searcher_action' => 'searcher',
             'searcher_param' => 'q',
             'searcher_serializer' => 'json_encode',
-            'index' => array(
+            'index_name' => 'main',
+            'index_find_params' => array(
                 'limit' => 1,
                 'fields' => array(
                     'subject',
@@ -82,7 +84,7 @@ app/models/ticket.php (full example)
                     ),
                 ),
             ),
-            'autoupdate' => false,
+            'auto_update' => false,
             'error_handler' => 'php',
         ),
     );
