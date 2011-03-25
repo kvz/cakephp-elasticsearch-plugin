@@ -138,8 +138,28 @@ From your browser
     curl -XDELETE 'http://127.0.0.1:9200/testme'
 
     # Get all tickets
-    curl -XGET http://127.0.0.1:9200/main/ticket/_search -d '{
+    curl -XGET http://127.0.0.1:9200/main/dns_domain/_search -d '{
         "query" : {
-            "term" : { "Ticket/id": "*" }
+            "query" : "**"
         }
+    }'
+
+    # Get everything
+    curl -XGET http://127.0.0.1:9200/main/_search?pretty=true -d '{
+        "query" : {
+            "field" : {
+                "_all" : "**"
+            }
+        },
+        "size" : 100000
+    }'
+
+    # Search through domains
+    time curl -XGET http://127.0.0.1:9200/main/dns_domain/_search?pretty=true -d '{
+        "query" : {
+            "field" : {
+                "_all" : "**"
+            }
+        },
+        "size" : 1000
     }'
