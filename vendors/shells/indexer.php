@@ -51,7 +51,12 @@ class IndexerShell extends TrueShell {
             }
 
             if (!is_array($ids = $Model->elastic_index())) {
-                return $this->err('Error indexing model: %s. %s', $modelName, $ids);
+                return $this->err(
+                    'Error indexing model: %s. ids: %s. errors: %s',
+                    $modelName,
+                    $ids,
+                    $Model->Behaviors->Searchable->errors
+                );
             }
 
             $this->info(

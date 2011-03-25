@@ -40,6 +40,7 @@ class SearchableBehavior extends ModelBehavior {
 
     protected $_Client;
     public $settings = array();
+    public $errors = array();
 
     protected static $_autoLoaderPrefix = '';
     public static function createAutoloader ($path, $prefix = '') {
@@ -131,6 +132,14 @@ class SearchableBehavior extends ModelBehavior {
         // Add documents
         $ids = array();
         foreach ($results as $result) {
+            if (empty($result[$Model->alias][$Model->primaryKey])) {
+                return $this->err(
+                    $Model,
+                    'I need at least primary key: %s->%s inside the index data. Please include in the index_find_params',
+                    $Model->alias,
+                    $Model->primaryKey
+                );
+            }
             $id    = $result[$Model->alias][$Model->primaryKey];
             $ids[] = $id;
             $Doc   = new Elastica_Document($id, Set::flatten($result, '/'));
@@ -217,8 +226,7 @@ class SearchableBehavior extends ModelBehavior {
             $str = vsprintf($str, $arguments);
         }
 
-        $this->error = $str;
-        #$Model->onError();
+        $this->errors[] = $str;
 
         if (@$this->settings[$Model->alias]['error_handler'] === 'php') {
             trigger_error($str, E_USER_ERROR);
