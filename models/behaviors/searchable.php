@@ -16,6 +16,7 @@ class SearchableBehavior extends ModelBehavior {
         '/elastic_search_opt/' => 'opt',
         '/elastic_search/' => 'search',
         '/elastic_index/' => 'index',
+        '/elastic_enabled/' => 'enabled',
     );
     
     protected $_default = array(
@@ -187,6 +188,13 @@ class SearchableBehavior extends ModelBehavior {
 
             return $msg;
         }
+    }
+
+    public function enabled ($Model, $method) {
+        if ($this->opt($Model, 'searcher_enabled') === false) {
+            return false;
+        }
+        return true;
     }
 
     public function setup ($Model, $settings = array()) {

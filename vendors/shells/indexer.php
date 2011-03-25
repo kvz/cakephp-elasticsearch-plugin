@@ -11,41 +11,79 @@ TrueShell::createAutoloader(dirname(dirname(__FILE__)) . '/Elastica/lib', 'Elast
 class IndexerShell extends TrueShell {
 	public $tasks = array();
 
+    protected function _allModels () {
+        $models = array();
+        foreach (glob(MODELS . '*.php') as $filePath) {
+            $base  = basename($filePath, '.php');
+            $class = Inflector::classify($base);
+
+            // Hacky, but still better than always instantiating
+            // all Models..
+            
+            $buf = file_get_contents($filePath);
+            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
+                $Model = ClassRegistry::init($class);
+                if (!$Model->Behaviors->attached('Searchable')) {
+                    continue;
+                }
+                if (!$Model->elastic_enabled()) {
+                    continue;
+                }
+
+                $models[] = $class;
+            }
+        }
+        return $models;
+    }
+
+
     public function fill ($modelName = null) {
-        if ($modelName === null && !($modelName = @$this->args[0])) {
-            return $this->err('Need to specify: $modelName');
-        }
-        if (!($Model = ClassRegistry::init($modelName))) {
-            return $this->err('Can\'t instantiate model: %s', $modelName);
-        }
-
-        if (!is_array($ids = $Model->elastic_index())) {
-            return $this->err('Error indexing model: %s. %s', $modelName, $ids);
+        $modelName = @$this->args[0];
+        if ($modelName === '_all' || !$modelName) {
+            $models = $this->_allModels();
+        } else {
+            $models = array($modelName);
         }
 
-        $this->info(
-            '%s %s have been added to the Elastic index (%s)',
-            count($ids),
-            Inflector::pluralize(Inflector::humanize($Model->alias)),
-            '#' . join(', #', $ids)
-        );
+        foreach ($models as $modelName) {
+            if (!($Model = ClassRegistry::init($modelName))) {
+                return $this->err('Can\'t instantiate model: %s', $modelName);
+            }
+
+            if (!is_array($ids = $Model->elastic_index())) {
+                return $this->err('Error indexing model: %s. %s', $modelName, $ids);
+            }
+
+            $this->info(
+                '%s %s have been added to the Elastic index (%s)',
+                count($ids),
+                Inflector::pluralize(Inflector::humanize($Model->alias)),
+                '#' . join(', #', $ids)
+            );
+        }
     }
 
     public function search ($modelName = null, $query = null) {
-        if ($modelName === null && !($modelName = @$this->args[0])) {
-            return $this->err('Need to specify: $modelName');
-        }
-        if ($query === null && !($query = @$this->args[1])) {
-            return $this->err('Need to specify: $query');
-        }
-        if (!($Model = ClassRegistry::init($modelName))) {
-            return $this->err('Can\'t instantiate model: %s', $modelName);
+        $modelName = @$this->args[0];
+        if ($modelName === '_all' || !$modelName) {
+            $models = $this->_allModels();
+        } else {
+            $models = array($modelName);
         }
 
-        $ResultSet = $Model->elastic_search($query);
-        while (($Result = $ResultSet->current())) {
-            print_r(compact('Result'));
-            $ResultSet->next();
+        foreach ($models as $modelName) {
+            if ($query === null && !($query = @$this->args[1])) {
+                return $this->err('Need to specify: $query');
+            }
+            if (!($Model = ClassRegistry::init($modelName))) {
+                return $this->err('Can\'t instantiate model: %s', $modelName);
+            }
+
+            $ResultSet = $Model->elastic_search($query);
+            while (($Result = $ResultSet->current())) {
+                print_r(compact('Result'));
+                $ResultSet->next();
+            }
         }
     }
 }

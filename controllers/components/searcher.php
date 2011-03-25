@@ -107,7 +107,7 @@ class SearcherComponent extends Object {
         if (!$Model->Behaviors->attached('Searchable')) {
             return false;
         }
-        if ($this->opt($Model, 'searcher_enabled') === false) {
+        if (!$Model->elastic_enabled()) {
             return false;
         }
 
