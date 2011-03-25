@@ -226,8 +226,12 @@ class SearchableBehavior extends ModelBehavior {
                         $Class  = array_shift($args);
                         $method = array_shift($args);
 
-
-                        $enforce[substr($key, 1)] = call_user_func_array(array($Class, $method), $args);
+                        $val = call_user_func_array(array($Class, $method), $args);
+                        // If null is returned, effictively remove key from enforce
+                        // params
+                        if ($val !== null) {
+                            $enforce[substr($key, 1)] = $val;
+                        }
                         unset($enforce[$key]);
                     }
                 }
