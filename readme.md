@@ -104,13 +104,24 @@ I chose for this method  (vs a dedicated SearchesController) so ACLing is easier
 e.g. You may already have an ACL for /tickets/*, so /tickets/search will automatically
 be restricted the same way.
 
-
 ## Try it
 
-    /var/git/cakephp1.3/cake/console/cake indexer fill Ticket
-    /var/git/cakephp1.3/cake/console/cake indexer search Ticket Hello
+    # Fill index with tickets
+    ./cake indexer fill Ticket
     
+    # Try a ticket search from commandline
+    ./cake indexer search Ticket Hello
 
 ## Todo
 
  - autoupdate
+
+## Useful commands
+
+    # Get Status
+    curl -XGET 'http://127.0.0.1:9200/_status?pretty=true'
+    
+    # Dangerous: Delete entire index
+    curl -XDELETE 'http://127.0.0.1:9200/testme'
+
+

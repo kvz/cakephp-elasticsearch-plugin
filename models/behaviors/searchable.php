@@ -58,6 +58,14 @@ class SearchableBehavior extends ModelBehavior {
         include($path);
     }
 
+    public function getIndex ($Model, $create = false) {
+        $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
+        if ($create) {
+            $Index->create(array(), true);
+        }
+        return $Index;
+    }
+
     public function Client () {
         if (!$this->_Client) {
             $DB = new DATABASE_CONFIG();
@@ -110,11 +118,10 @@ class SearchableBehavior extends ModelBehavior {
             $indexParams = array();
         }
 
-        // Setup index
+        // Create index
+        $Index    = $this->getIndex($Model, true);
         $typeName = Inflector::underscore($Model->alias);
-        $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
-        $Index->create(array(), true);
-        $Type = $Index->getType($typeName);
+        $Type     = $Index->getType($typeName);
 
         // Get records
         $Model->Behaviors->attach('Containable');
@@ -159,13 +166,12 @@ class SearchableBehavior extends ModelBehavior {
             return;
         }
 
-        // Setup index
+        // Get index
+        $Index    = $this->getIndex($Model, false);
         $typeName = Inflector::underscore($Model->alias);
-        $Index    = $this->Client()->getIndex($this->opt($Model, 'index_name'));
-        $Type     = $Index->getType($typeName . '-');
+        $Type     = $Index->getType($typeName);
         
         // Search documents
-
         try {
             $Query = new Elastica_Query(new Elastica_Query_QueryString($query));
             if (($highlightParams = $this->opt($Model, 'highlight'))) {
