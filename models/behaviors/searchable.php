@@ -24,6 +24,10 @@ class SearchableBehavior extends ModelBehavior {
             'pre_tags' => array('<em class="highlight">'),
             'post_tags' => array('</em>'),
             'fields' => array(
+                '_all' => array(
+                    'fragment_size' => 200,
+                    'number_of_fragments' => 1,
+                ),
             ),
         ),
         'debug_traces' => false,
@@ -256,6 +260,9 @@ class SearchableBehavior extends ModelBehavior {
     protected function _filter_highlight ($Model, $val) {
         if (($params = @$val['fields']['_all'])) {
             unset($val['fields']['_all']);
+            if (false !== ($k = array_search('_no_all', $val['fields'], true))) {
+                return $val;
+            }
 
             if (!array_key_exists($Model->alias, $this->_fields)) {
                 $this->_fields[$Model->alias] = false;
@@ -263,11 +270,9 @@ class SearchableBehavior extends ModelBehavior {
                 if (!($ResultSet = $this->search($Model, '*', array('limit' => 1)))) {
                     return $val;
                 }
-
-                if (!is_object($val)) {
+                if (!is_object($ResultSet)) {
                     return $val;
                 }
-
                 if (!($results = $ResultSet->getResults())) {
                     return $val;
                 }
