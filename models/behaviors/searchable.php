@@ -40,6 +40,7 @@ class SearchableBehavior extends ModelBehavior {
         'index_name' => 'main',
         'error_handler' => 'php',
         'want_objects' => false,
+        'enforce' => array(),
     );
 
     protected $_Client;
@@ -207,14 +208,29 @@ class SearchableBehavior extends ModelBehavior {
 
         // Search documents
         try {
-            $Query = new Elastica_Query(new Elastica_Query_QueryString($query));
+
+            $BoolQuery = new Elastica_Query_Bool();
+
+            $QueryFreely  = new Elastica_Query_QueryString($query);
+            $BoolQuery->addMust($QueryFreely);
+
+            if (array_key_exists('enforce', $queryParams)) {
+                $enforce = $queryParams['enforce'];
+            } else if (($opt = $this->opt($Model, 'enforce'))) {
+                $enforce = $opt;
+            }
+            if (@$enforce) {
+                $QueryEnforcer = new Elastica_Query_Term($enforce);
+                $BoolQuery->addMust($QueryEnforcer);
+            }
+
+            $Query = new Elastica_Query($BoolQuery);
 
             if (array_key_exists('highlight', $queryParams)) {
                 $highlight = $queryParams['highlight'];
             } else if (($opt = $this->opt($Model, 'highlight'))) {
                 $highlight = $opt;
             }
-
             if (@$highlight) {
                 $Query->setHighlight($highlight);
             }
@@ -222,11 +238,6 @@ class SearchableBehavior extends ModelBehavior {
             $limit = @$queryParams['limit'];
             if ($limit) {
                 $Query->setLimit($limit);
-            }
-
-            $filters = @$queryParams['filters'];
-            if ($filters) {
-                $Query->addFilter($filters);
             }
 
             $sort = @$queryParams['sort'];

@@ -86,6 +86,9 @@ app/models/ticket.php (full example)
             ),
             'auto_update' => false,
             'error_handler' => 'php',
+            'enforce' => array(
+                'Customer/id' => 123,
+            ),
         ),
     );
 

@@ -11,7 +11,6 @@ class SearcherComponent extends Object {
         if (!($Model = $this->isEnabled($Controller))) {
             return null;
         }
-
         if ($Controller->action !== $this->opt($Model, 'searcher_action')) {
             return null;
         }
@@ -19,11 +18,11 @@ class SearcherComponent extends Object {
         if (!($query = @$Controller->passedArgs[$this->opt($Model, 'searcher_param')])) {
             return $this->err($Model, 'No search query');
         }
+        $ResultSet = $Model->elastic_search($query);
 
-        if (is_string($ResultSet = $Model->elastic_search($query))) {
+        if (is_string($ResultSet)) {
             return $this->err($Model, 'Error while doing search: %s', $ResultSet);
         }
-
         if (!$ResultSet) {
             return $this->err($Model, 'Received an invalid ResultSet: %s', $ResultSet);
         }
