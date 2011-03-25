@@ -59,11 +59,16 @@ class IndexerShell extends TrueShell {
                 );
             }
 
+            $txtIds = '#' . join(', #', $ids);
+            if (strlen($txtIds) > 33) {
+                $txtIds = substr($txtIds, 0, 30) . '...';
+            }
+
             $this->info(
-                '%s %s have been added to the Elastic index (%s)',
+                '%s %s have been added to the Elastic index ids: %s',
                 count($ids),
                 Inflector::pluralize(Inflector::humanize($Model->alias)),
-                '#' . join(', #', $ids)
+                $txtIds
             );
         }
     }

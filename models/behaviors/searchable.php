@@ -24,10 +24,6 @@ class SearchableBehavior extends ModelBehavior {
             'pre_tags' => array('<em class="highlight">'),
             'post_tags' => array('</em>'),
             'fields' => array(
-                '_all' => array(
-                    'fragment_size' => 200,
-                    'number_of_fragments' => 1,
-                ),
             ),
         ),
         'debug_traces' => false,
@@ -64,10 +60,10 @@ class SearchableBehavior extends ModelBehavior {
         include($path);
     }
 
-    public function IndexType ($Model, $create = false) {
+    public function IndexType ($Model, $create = false, $reset = false) {
         $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
-        if ($create) {
-            $Index->create(array(), true);
+        if ($reset) {
+            $Index->create(array(), $reset);
         }
         $Type = $Index->getType(Inflector::underscore($Model->alias));
 
@@ -122,8 +118,8 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Bam
-        if (!($indexParams = $this->opt($Model, 'index_find_params'))) {
-            $indexParams = array();
+        if (!($params = $this->opt($Model, 'index_find_params'))) {
+            $params = array();
         }
 
         // Create index
@@ -131,7 +127,7 @@ class SearchableBehavior extends ModelBehavior {
 
         // Get records
         $Model->Behaviors->attach('Containable');
-        $results = $Model->find('all', $indexParams);
+        $results = $Model->find('all', $params);
 
         // Add documents
         $ids = array();
@@ -147,7 +143,13 @@ class SearchableBehavior extends ModelBehavior {
             $id    = $result[$Model->alias][$Model->primaryKey];
             $ids[] = $id;
             $Doc   = new Elastica_Document($id, Set::flatten($result, '/'));
-            $Type->addDocument($Doc);
+            if (!$Type->addDocument($Doc)) {
+                return $this->err(
+                    $Model,
+                    'Unable to add document %s',
+                    $id
+                );
+            }
         }
 
         // Index needs a moment to be updated
@@ -257,9 +259,23 @@ class SearchableBehavior extends ModelBehavior {
 
             if (!array_key_exists($Model->alias, $this->_fields)) {
                 $this->_fields[$Model->alias] = false;
-                if (($ResultSet = $this->search($Model, '*', array('limit' => 1))) && ($results = $ResultSet->getResults()) && ($result = @$results[0])) {
-                    $this->_fields[$Model->alias] = array_keys($result->getData());
+
+                if (!($ResultSet = $this->search($Model, '*', array('limit' => 1)))) {
+                    return $val;
                 }
+
+                if (!is_object($val)) {
+                    return $val;
+                }
+
+                if (!($results = $ResultSet->getResults())) {
+                    return $val;
+                }
+                if (!($result = @$results[0])) {
+                    return $val;
+                }
+
+                $this->_fields[$Model->alias] = array_keys($result->getData());
             }
 
             if (is_array($this->_fields[$Model->alias])) {

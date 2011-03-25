@@ -108,6 +108,9 @@ be restricted the same way.
 
 From your shell:
 
+    # Fill all indexes
+    ./cake indexer fill
+
     # Fill index with tickets
     ./cake indexer fill Ticket
     
@@ -120,14 +123,19 @@ From your browser
 
 ## Todo
 
- - autoupdate
+ - auto_update
 
 ## Useful commands
 
     # Get Status
     curl -XGET 'http://127.0.0.1:9200/_status?pretty=true'
     
-    # Dangerous: Delete entire index
+    # Dangerous: Delete an entire index
     curl -XDELETE 'http://127.0.0.1:9200/testme'
 
-
+    # Get all tickets
+    curl -XGET http://127.0.0.1:9200/main/ticket/_search -d '{
+        "query" : {
+            "term" : { "Ticket/id": "*" }
+        }
+    }'
