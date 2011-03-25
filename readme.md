@@ -88,6 +88,7 @@ app/models/ticket.php (full example)
             'error_handler' => 'php',
             'enforce' => array(
                 'Customer/id' => 123,
+                // callback: '#Customer/id' => array('LiveUser', 'id'),
             ),
         ),
     );

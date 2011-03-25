@@ -220,6 +220,18 @@ class SearchableBehavior extends ModelBehavior {
                 $enforce = $opt;
             }
             if (@$enforce) {
+                foreach ($enforce as $key => $val) {
+                    if (substr($key, 0 ,1) === '#' && is_array($val)) {
+                        $args   = $val;
+                        $Class  = array_shift($args);
+                        $method = array_shift($args);
+
+
+                        $enforce[substr($key, 1)] = call_user_func_array(array($Class, $method), $args);
+                        unset($enforce[$key]);
+                    }
+                }
+
                 $QueryEnforcer = new Elastica_Query_Term($enforce);
                 $BoolQuery->addMust($QueryEnforcer);
             }
