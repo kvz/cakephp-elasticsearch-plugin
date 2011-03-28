@@ -86,6 +86,7 @@ app/models/ticket.php (full example)
             ),
             'auto_update' => false,
             'error_handler' => 'php',
+            'static_url_generator' => array('{model}', 'url'),
             'enforce' => array(
                 'Customer/id' => 123,
                 // callback: '#Customer/id' => array('LiveUser', 'id'),
@@ -94,6 +95,9 @@ app/models/ticket.php (full example)
     );
 
 ### Controller
+
+To automatically enable a /<controller>/searcher url on all models
+that have elastic search enabled, use:
 
 app/app_controller.php
 
@@ -107,6 +111,23 @@ has the searchable behavior attached.
 I chose for this method  (vs a dedicated SearchesController) so ACLing is easier.
 e.g. You may already have an ACL for /tickets/*, so /tickets/search will automatically
 be restricted the same way.
+
+#### Generic search
+
+If you want to search on all models, you could make a dedicated search controller
+and instruct to search on everything like so:
+
+    class CustomersController extends AppController {
+        public $components = array(
+            'Elasticsearch.Searcher' => array(
+                'model' => '_all',
+            ),
+            // ... etc
+
+One known limitation is that the Elasticsearch plugin will only look at the
+first configured Model for configuration parameters like `searcher_param`
+and `searcher_action`.
+
 
 ## Try it
 
@@ -125,6 +146,37 @@ From your browser
 
     http://www.example.com/tickets/searcher/q:*kevin*
 
+## jQuery integration
+
+Let's look at an integration example that uses
+[jQuery UI's autocomplete](http://docs.jquery.com/UI/Autocomplete).
+
+Assuming you have included that library, and have an input field with attributes
+`id="main-search"` and `target="/tickets/searcher/q:*{query}*"`:
+
+    // Main-search
+    $(document).ready(function () {
+        $("#main-search").autocomplete({
+            source: function(request, response) {
+                $.getJSON($("#main-search").attr('target').replace('{query}', request.term), null, response);
+            },
+            delay: 100,
+            select: function(event, ui) {
+                var id = 0;
+                if ((id = ui.item.id)) {
+                    location.href = ui.item.url;
+                    alert('Selected: #' +  id + ': ' + ui.item.url);
+                }
+                return false;
+            }
+        }).data( "autocomplete" )._renderItem = function( ul, item ) {
+            return $("<li></li>")
+                .data("item.autocomplete", item)
+                .append("<a href='" + item.url + "'>" + item.html + "<br>" + item.descr + "</a>")
+                .appendTo(ul);
+        };
+    });
+
 ## Todo
 
  - auto_update
@@ -136,6 +188,9 @@ From your browser
     
     # Dangerous: Delete an entire index
     curl -XDELETE 'http://127.0.0.1:9200/testme'
+
+    # Dangerous: Delete an entire type
+    curl -XDELETE 'http://127.0.0.1:9200/main/dns_domain'
 
     # Get all tickets
     curl -XGET http://127.0.0.1:9200/main/dns_domain/_search -d '{

@@ -7,40 +7,14 @@
  */
 require_once dirname(__FILE__) . '/templates/true_shell.php';
 TrueShell::createAutoloader(dirname(dirname(__FILE__)) . '/Elastica/lib', 'Elastica_');
-
+App::import('Lib', 'Elasticsearch.Elasticsearch');
 class IndexerShell extends TrueShell {
 	public $tasks = array();
-
-    protected function _allModels () {
-        $models = array();
-        foreach (glob(MODELS . '*.php') as $filePath) {
-            $base  = basename($filePath, '.php');
-            $class = Inflector::classify($base);
-
-            // Hacky, but still better than always instantiating
-            // all Models..
-            
-            $buf = file_get_contents($filePath);
-            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
-                $Model = ClassRegistry::init($class);
-                if (!$Model->Behaviors->attached('Searchable')) {
-                    continue;
-                }
-                if (!$Model->elastic_enabled()) {
-                    continue;
-                }
-
-                $models[] = $class;
-            }
-        }
-        return $models;
-    }
-
 
     public function fill ($modelName = null) {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
-            $models = $this->_allModels();
+            $models = Elasticsearch::allModels();
         } else {
             $models = array($modelName);
         }
@@ -65,7 +39,7 @@ class IndexerShell extends TrueShell {
             }
 
             $this->info(
-                '%s %s have been added to the Elastic index ids: %s',
+                '%7s %18s have been added to the Elastic index ids: %s',
                 count($ids),
                 Inflector::pluralize(Inflector::humanize($Model->alias)),
                 $txtIds
@@ -76,7 +50,7 @@ class IndexerShell extends TrueShell {
     public function search ($modelName = null, $query = null) {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
-            $models = $this->_allModels();
+            $models = Elasticsearch::allModels();
         } else {
             $models = array($modelName);
         }
@@ -91,7 +65,7 @@ class IndexerShell extends TrueShell {
 
             $ResultSet = $Model->elastic_search($query);
             while (($Result = $ResultSet->current())) {
-                print_r(compact('Result'));
+                print_r(compact('Result', 'query'));
                 $ResultSet->next();
             }
         }

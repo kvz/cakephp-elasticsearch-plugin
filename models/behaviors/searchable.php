@@ -36,10 +36,11 @@ class SearchableBehavior extends ModelBehavior {
         'searcher_param' => 'q',
         'searcher_serializer' => 'json_encode',
         'auto_update' => false,
+        'limit' => 12,
         'index_find_params' => array(),
         'index_name' => 'main',
+        'static_url_generator' => array('{model}', 'url'),
         'error_handler' => 'php',
-        'want_objects' => false,
         'enforce' => array(),
     );
 
@@ -122,7 +123,7 @@ class SearchableBehavior extends ModelBehavior {
             }
         }
 
-        // Bam
+        // Set params
         if (!($params = $this->opt($Model, 'index_find_params'))) {
             $params = array();
         }
@@ -134,7 +135,15 @@ class SearchableBehavior extends ModelBehavior {
         $Model->Behaviors->attach('Containable');
         $results = $Model->find('all', $params);
 
+
         // Add documents
+        $urlCb = $this->opt($Model, 'static_url_generator');
+        if ($urlCb[0] === '{model}') {
+            $urlCb[0] = $Model->name;
+        }
+        if (!method_exists($urlCb[0], $urlCb[1])) {
+            $urlCb = false;
+        }
         $ids = array();
         foreach ($results as $result) {
             if (empty($result[$Model->alias][$Model->primaryKey])) {
@@ -145,14 +154,38 @@ class SearchableBehavior extends ModelBehavior {
                     $Model->primaryKey
                 );
             }
-            $id    = $result[$Model->alias][$Model->primaryKey];
-            $ids[] = $id;
-            $Doc   = new Elastica_Document($id, Set::flatten($result, '/'));
+            $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
+            
+            $result['_label'] = '';
+            if (array_key_exists($Model->displayField, $result[$Model->alias])) {
+                $result['_label'] = $result[$Model->alias][$Model->displayField];
+            }
+            $result['_descr'] = '';
+            if (array_key_exists(@$Model->descripField, $result[$Model->alias])) {
+                $result['_descr'] = $result[$Model->alias][$Model->descripField];
+            }
+
+            $result['_model'] = $Model->name;
+            if (!@$Model->titlePlu) {
+                if (!@$Model->title) {
+                    $Model->title = Inflector::humanize(Inflector::underscore($result['_model']));
+                }
+                $Model->titlePlu = Inflector::pluralize($Model->title);
+            }
+            $result['_model_title'] = $Model->titlePlu;
+
+            $result['_url']   = '';
+            if (is_array($urlCb)) {
+                $result['_url'] = call_user_func($urlCb, $result['_id'], $result['_model']);
+            }
+
+            $ids[] = $result['_id'];
+            $Doc   = new Elastica_Document($result['_id'], Set::flatten($result, '/'));
             if (!$Type->addDocument($Doc)) {
                 return $this->err(
                     $Model,
                     'Unable to add document %s',
-                    $id
+                    $result['_id']
                 );
             }
         }
@@ -200,7 +233,7 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // queryParams
-        $queryParams = @$args[0]  ? array_shift($args) : array();
+        $queryParams = @$args[0] ? array_shift($args) : array();
 
         // Get index
         list($Index, $Type) = $this->IndexType($Model);
@@ -211,7 +244,7 @@ class SearchableBehavior extends ModelBehavior {
 
             $BoolQuery = new Elastica_Query_Bool();
 
-            $QueryFreely  = new Elastica_Query_QueryString($query);
+            $QueryFreely = new Elastica_Query_QueryString($query);
             $BoolQuery->addMust($QueryFreely);
 
             if (array_key_exists('enforce', $queryParams)) {
@@ -247,19 +280,22 @@ class SearchableBehavior extends ModelBehavior {
             } else if (($opt = $this->opt($Model, 'highlight'))) {
                 $highlight = $opt;
             }
-            if (@$highlight) {
-                $Query->setHighlight($highlight);
-            }
 
-            if (!($limit = @$queryParams['limit'])) {
-                $limit = 1000;
-            }
-            if ($limit) {
-                $Query->setLimit($limit);
+            if (array_key_exists('limit', $queryParams)) {
+                $limit = $queryParams['limit'];
+            } else if (($opt = $this->opt($Model, 'limit'))) {
+                $limit = $opt;
             }
 
             $sort = @$queryParams['sort'];
-            if ($sort) {
+
+            if (@$highlight) {
+                $Query->setHighlight($highlight);
+            }
+            if (@$limit) {
+                $Query->setLimit($limit);
+            }
+            if (@$sort) {
                 $Query->setSort($sort);
             }
 
@@ -296,7 +332,7 @@ class SearchableBehavior extends ModelBehavior {
             if (!array_key_exists($Model->alias, $this->_fields)) {
                 $this->_fields[$Model->alias] = false;
 
-                if (!($ResultSet = $this->search($Model, '*', array('limit' => 1)))) {
+                if (!($ResultSet = $this->search($Model, '*', array('limit' => 1, )))) {
                     return $val;
                 }
                 if (!is_object($ResultSet)) {
@@ -314,6 +350,9 @@ class SearchableBehavior extends ModelBehavior {
 
             if (is_array($this->_fields[$Model->alias])) {
                 foreach ($this->_fields[$Model->alias] as $field) {
+                    if (substr($field, 0, 1) === '_') {
+                        continue;
+                    }
                     $val['fields'][$field] = $params;
                 }
             }
