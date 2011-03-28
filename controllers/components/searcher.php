@@ -89,7 +89,7 @@ class SearcherComponent extends Object {
             $result['descr'] = @$result['data']['_descr'];
             $result['url']   = @$result['data']['_url'];
             $result['model'] = @$result['data']['_model'];
-            $result['model_title'] = @$result['data']['_model_title'];
+            $result['category'] = @$result['data']['_model_title'];
 
             if (($html = @$result['highlights']['_label'][0])) {
                 $result['html'] = $html;
@@ -97,16 +97,16 @@ class SearcherComponent extends Object {
                 $result['html'] = $result['label'];
             }
 
-            // Divider by type
-            if (@$prevTitle !== $result['model_title']) {
-                $response['results'][] = array(
-                    'label' => $result['model_title'],
-                    'html' => '<strong>' . $result['model_title'] . '</strong>',
-                    'descr' => '',
-                    'url' => '#',
-                );
-            }
-            $prevTitle = $result['model_title'];
+//            // Divider by type
+//            if (@$prevTitle !== $result['model_title']) {
+//                $response['results'][] = array(
+//                    'label' => $result['model_title'],
+//                    'html' => '<strong>' . $result['model_title'] . '</strong>',
+//                    'descr' => '',
+//                    'url' => '#',
+//                );
+//            }
+//            $prevTitle = $result['model_title'];
 
             // Add te response
             $response['results'][] = $result;
