@@ -30,6 +30,7 @@ class SearchableBehavior extends ModelBehavior {
                 ),
             ),
         ),
+        'field_label' => null,
         'debug_traces' => false,
         'searcher_enabled' => true,
         'searcher_action' => 'searcher',
@@ -39,6 +40,7 @@ class SearchableBehavior extends ModelBehavior {
         'limit' => 12,
         'index_find_params' => array(),
         'index_name' => 'main',
+        'index_chunksize' => 10000,
         'static_url_generator' => array('{model}', 'url'),
         'error_handler' => 'php',
         'enforce' => array(),
@@ -123,17 +125,48 @@ class SearchableBehavior extends ModelBehavior {
             }
         }
 
-        // Set params
-        if (!($params = $this->opt($Model, 'index_find_params'))) {
-            $params = array();
-        }
-
         // Create index
         list($Index, $Type) = $this->IndexType($Model, true);
 
         // Get records
         $Model->Behaviors->attach('Containable');
+
+
+        $offset = 0;
+        $limit  = $this->opt($Model, 'index_chunksize');
+        $ids    = array();
+        while (true) {
+            $curIds = $this->_indexChunk($Model, $Index, $Type, $offset, $limit);
+            $ids    = Set::merge($ids, $curIds);
+
+            if (count($curIds) < $limit) {
+                break;
+            }
+            $offset += $limit;
+        }
+
+        // Index needs a moment to be updated
+        $Index->refresh();
+
+        return $ids;
+    }
+
+    protected function _indexChunk ($Model, $Index, $Type, $offset, $limit) {
+        // Set params
+        if (!($params = $this->opt($Model, 'index_find_params'))) {
+            $params = array();
+        }
+
+        $params['offset'] = $offset;
+        if (empty($params['limit'])) {
+            $params['limit']  = $limit;
+        }
+
         $results = $Model->find('all', $params);
+
+        if (empty($results)) {
+            return array();
+        }
 
 
         // Add documents
@@ -145,6 +178,7 @@ class SearchableBehavior extends ModelBehavior {
             $urlCb = false;
         }
         $ids = array();
+        $field_label = $this->opt($Model, 'field_label');
         foreach ($results as $result) {
             if (empty($result[$Model->alias][$Model->primaryKey])) {
                 return $this->err(
@@ -155,11 +189,28 @@ class SearchableBehavior extends ModelBehavior {
                 );
             }
             $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
-            
+
             $result['_label'] = '';
-            if (array_key_exists($Model->displayField, $result[$Model->alias])) {
-                $result['_label'] = $result[$Model->alias][$Model->displayField];
+
+            // You can concatate fields into 1 label
+            if (is_array($field_label)) {
+                $concats = array();
+                foreach ($field_label as $path) {
+                    if (substr($path, 0, 1) === '/') {
+                        $d = Set::extract($result, $path);
+                        $concats[] = reset($d);
+                    } else {
+                        $concats[] = $path;
+                    }
+                }
+                
+                $result['_label'] = join(' ', $concats);
+            } else {
+                if (array_key_exists($Model->displayField, $result[$Model->alias])) {
+                    $result['_label'] = $result[$Model->alias][$Model->displayField];
+                }
             }
+
             $result['_descr'] = '';
             if (array_key_exists(@$Model->descripField, $result[$Model->alias])) {
                 $result['_descr'] = $result[$Model->alias][$Model->descripField];
@@ -190,11 +241,9 @@ class SearchableBehavior extends ModelBehavior {
             }
         }
 
-        // Index needs a moment to be updated
-        $Index->refresh();
-
         return $ids;
     }
+
 
     /**
      * Search. Arguments can be different wether the call is made like

@@ -47,11 +47,12 @@ class SearcherComponent extends Object {
         
         $response = array();
         foreach ($Models as $Model) {
-            $response = Set::merge($response, $this->search($query, $Model));
+            $res = $this->search($query, $Model);
+            foreach ($res as $k => $v) {
+                $response[] = $v;
+            }
         }
 
-        // Trim down for jQuery autocomplete
-        $response = @$response['results'] ? @$response['results'] : array();
 
         return $this->respond($Model, $response);
     }
@@ -112,6 +113,9 @@ class SearcherComponent extends Object {
 
             $ResultSet->next();
         }
+
+        // Trim down for jQuery autocomplete
+        $response = @$response['results'] ? @$response['results'] : array();
         
         return $response;
     }

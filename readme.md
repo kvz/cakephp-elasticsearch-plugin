@@ -56,7 +56,9 @@ app/models/ticket.php (full example)
             'searcher_action' => 'searcher',
             'searcher_param' => 'q',
             'searcher_serializer' => 'json_encode',
+            'field_label' => array('/Product/description', '/BasketItem/description'),
             'index_name' => 'main',
+            'index_chunksize' => 10000,
             'index_find_params' => array(
                 'limit' => 1,
                 'fields' => array(
