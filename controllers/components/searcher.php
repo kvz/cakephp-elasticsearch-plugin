@@ -97,17 +97,6 @@ class SearcherComponent extends Object {
                 $result['html'] = $result['label'];
             }
 
-//            // Divider by type
-//            if (@$prevTitle !== $result['model_title']) {
-//                $response['results'][] = array(
-//                    'label' => $result['model_title'],
-//                    'html' => '<strong>' . $result['model_title'] . '</strong>',
-//                    'descr' => '',
-//                    'url' => '#',
-//                );
-//            }
-//            $prevTitle = $result['model_title'];
-
             // Add te response
             $response['results'][] = $result;
 
@@ -142,20 +131,20 @@ class SearcherComponent extends Object {
         Configure::write('debug', 0);
         $serializer = $this->mOpt($Model, 'searcher_serializer');
 
-//        global $xhprof_on, $TIME_START, $profiler_namespace;
-//        if ($xhprof_on) {
-//            $xhprof_data  = xhprof_disable();
-//            $xhprof_runs  = new XHProfRuns_Default();
-//            $run_id       = $xhprof_runs->save_run($xhprof_data, $profiler_namespace);
-//            $response['__parsetime'] = number_format(getmicrotime() - $TIME_START, 3);
-//            $response['__xhprof'] = sprintf(
-//                'http://%s%s/xhprof/xhprof_html/index.php?run=%s&source=%s',
-//                $_SERVER['HTTP_HOST'],
-//                Configure::read('App.urlpath'),
-//                $run_id,
-//                $profiler_namespace
-//            );
-//        }
+        global $xhprof_on, $TIME_START, $profiler_namespace;
+        if ($xhprof_on) {
+            $xhprof_data  = xhprof_disable();
+            $xhprof_runs  = new XHProfRuns_Default();
+            $run_id       = $xhprof_runs->save_run($xhprof_data, $profiler_namespace);
+            $response['__parsetime'] = number_format(getmicrotime() - $TIME_START, 3);
+            $response['__xhprof'] = sprintf(
+                'http://%s%s/xhprof/xhprof_html/index.php?run=%s&source=%s',
+                $_SERVER['HTTP_HOST'],
+                Configure::read('App.urlpath'),
+                $run_id,
+                $profiler_namespace
+            );
+        }
 
         if (!is_callable($serializer)) {
             echo json_encode(array(
