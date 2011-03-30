@@ -35,7 +35,7 @@ Class Elasticsearch {
      *
      * @return mixed Object or false on failure
      */
-    public function isEnabledOnModel ($Model) {
+    public static function isEnabledOnModel ($Model) {
         if (!$Model->Behaviors->attached('Searchable')) {
             return false;
         }

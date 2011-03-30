@@ -44,7 +44,7 @@ class SearcherComponent extends Object {
                 );
             }
         }
-        
+
         $response = array();
         foreach ($Models as $Model) {
             $res = $this->search($query, $Model);
@@ -131,21 +131,6 @@ class SearcherComponent extends Object {
         Configure::write('debug', 0);
         $serializer = $this->mOpt($Model, 'searcher_serializer');
 
-        global $xhprof_on, $TIME_START, $profiler_namespace;
-        if ($xhprof_on) {
-            $xhprof_data  = xhprof_disable();
-            $xhprof_runs  = new XHProfRuns_Default();
-            $run_id       = $xhprof_runs->save_run($xhprof_data, $profiler_namespace);
-            $response['__parsetime'] = number_format(getmicrotime() - $TIME_START, 3);
-            $response['__xhprof'] = sprintf(
-                'http://%s%s/xhprof/xhprof_html/index.php?run=%s&source=%s',
-                $_SERVER['HTTP_HOST'],
-                Configure::read('App.urlpath'),
-                $run_id,
-                $profiler_namespace
-            );
-        }
-
         if (!is_callable($serializer)) {
             echo json_encode(array(
                 'errors' => array('Serializer ' . $serializer . ' was not callable', ), 
@@ -153,6 +138,24 @@ class SearcherComponent extends Object {
         } else {
             echo call_user_func($serializer, $response);
         }
+
+
+        global $xhprof_on, $TIME_START, $profiler_namespace;
+        if ($xhprof_on) {
+            $xhprof_data  = xhprof_disable();
+            $xhprof_runs  = new XHProfRuns_Default();
+            $run_id       = $xhprof_runs->save_run($xhprof_data, $profiler_namespace);
+            $parsetime = number_format(getmicrotime() - $TIME_START, 3);
+            $xhprof = sprintf(
+                'http://%s%s/xhprof/xhprof_html/index.php?run=%s&source=%s',
+                $_SERVER['HTTP_HOST'],
+                Configure::read('App.urlpath'),
+                $run_id,
+                $profiler_namespace
+            );
+            echo "<a href=\"".$response['__xhprof'] ."\">xhprof</a>@".$parsetime."";
+        }
+
 
         die();
     }

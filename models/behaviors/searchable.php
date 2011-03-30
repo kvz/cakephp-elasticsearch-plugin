@@ -244,6 +244,58 @@ class SearchableBehavior extends ModelBehavior {
         return $ids;
     }
 
+    protected function _queryParams ($Model, $queryParams, $keys) {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $queryParams) && ($opt = $this->opt($Model, $key))) {
+                $queryParams[$key] = $opt;
+            }
+        }
+        
+        return $queryParams;
+    }
+
+    public function Query ($query, $queryParams) {
+        $BoolQuery = new Elastica_Query_Bool();
+        
+        $FreeQuery = new Elastica_Query_QueryString($query);
+        $BoolQuery->addMust($FreeQuery);
+
+        if (@$queryParams['enforce']) {
+            foreach ($queryParams['enforce'] as $key => $val) {
+                if (substr($key, 0 ,1) === '#' && is_array($val)) {
+                    $args   = $val;
+                    $Class  = array_shift($args);
+                    $method = array_shift($args);
+
+                    $val = call_user_func_array(array($Class, $method), $args);
+                    // If null is returned, effictively remove key from enforce
+                    // params
+                    if ($val !== null) {
+                        $queryParams['enforce'][substr($key, 1)] = $val;
+                    }
+                    unset($queryParams['enforce'][$key]);
+                }
+            }
+
+            if (!empty($queryParams['enforce'])) {
+                $QueryEnforcer = new Elastica_Query_Term($queryParams['enforce']);
+                $BoolQuery->addMust($QueryEnforcer);
+            }
+        }
+
+        $Query = new Elastica_Query($BoolQuery);
+        if (@$queryParams['highlight']) {
+            $Query->setHighlight($queryParams['highlight']);
+        }
+        if (@$queryParams['limit']) {
+            $Query->setLimit($queryParams['limit']);
+        }
+        if (@$queryParams['sort']) {
+            $Query->setSort($sort);
+        }
+        
+        return $Query;
+    }
 
     /**
      * Search. Arguments can be different wether the call is made like
@@ -284,70 +336,22 @@ class SearchableBehavior extends ModelBehavior {
         // queryParams
         $queryParams = @$args[0] ? array_shift($args) : array();
 
-        // Get index
-        list($Index, $Type) = $this->IndexType($Model);
+        // All models
+        $OnModels = @$args[0] ? array_shift($args) : array();
+
+        $queryParams = $this->_queryParams($Model, $queryParams, array(
+            'enforce',
+            'highlight',
+            'limit',
+        ));
 
 
         // Search documents
         try {
+            // Get index
+            list($Index, $Type) = $this->IndexType($Model);
 
-            $BoolQuery = new Elastica_Query_Bool();
-
-            $QueryFreely = new Elastica_Query_QueryString($query);
-            $BoolQuery->addMust($QueryFreely);
-
-            if (array_key_exists('enforce', $queryParams)) {
-                $enforce = $queryParams['enforce'];
-            } else if (($opt = $this->opt($Model, 'enforce'))) {
-                $enforce = $opt;
-            }
-            if (@$enforce) {
-                foreach ($enforce as $key => $val) {
-                    if (substr($key, 0 ,1) === '#' && is_array($val)) {
-                        $args   = $val;
-                        $Class  = array_shift($args);
-                        $method = array_shift($args);
-
-                        $val = call_user_func_array(array($Class, $method), $args);
-                        // If null is returned, effictively remove key from enforce
-                        // params
-                        if ($val !== null) {
-                            $enforce[substr($key, 1)] = $val;
-                        }
-                        unset($enforce[$key]);
-                    }
-                }
-
-                $QueryEnforcer = new Elastica_Query_Term($enforce);
-                $BoolQuery->addMust($QueryEnforcer);
-            }
-
-            $Query = new Elastica_Query($BoolQuery);
-
-            if (array_key_exists('highlight', $queryParams)) {
-                $highlight = $queryParams['highlight'];
-            } else if (($opt = $this->opt($Model, 'highlight'))) {
-                $highlight = $opt;
-            }
-
-            if (array_key_exists('limit', $queryParams)) {
-                $limit = $queryParams['limit'];
-            } else if (($opt = $this->opt($Model, 'limit'))) {
-                $limit = $opt;
-            }
-
-            $sort = @$queryParams['sort'];
-
-            if (@$highlight) {
-                $Query->setHighlight($highlight);
-            }
-            if (@$limit) {
-                $Query->setLimit($limit);
-            }
-            if (@$sort) {
-                $Query->setSort($sort);
-            }
-
+            $Query = $this->Query($query, $queryParams);
             $ResultSet = $Type->search($Query);
 
             return $ResultSet;
