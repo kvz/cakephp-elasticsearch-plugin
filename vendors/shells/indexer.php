@@ -64,6 +64,11 @@ class IndexerShell extends TrueShell {
             }
 
             $ResultSet = $Model->elastic_search($query);
+
+            if (is_string($ResultSet)) {
+                $this->crit($ResultSet);
+            }
+
             while (($Result = $ResultSet->current())) {
                 print_r(compact('Result', 'query'));
                 $ResultSet->next();

@@ -6,7 +6,9 @@
  */
 class SearcherComponent extends Object {
     public $Controller;
+    public $LeadModel;
     public $settings = array();
+    public $serializer;
     protected $_default = array(
         
     );
@@ -22,50 +24,43 @@ class SearcherComponent extends Object {
         App::import('Lib', 'Elasticsearch.Elasticsearch');
         if ($this->opt('model') === '_all') {
             $Models = Elasticsearch::allModels(true);
-            $LeadingModel = reset($Models);
+            $this->LeadingModel = reset($Models);
         } else {
-            $LeadingModel = $this->isEnabled($Controller);
-            $Models = array($LeadingModel);
+            $this->LeadingModel = $this->isEnabled($Controller);
+            $Models = array($this->LeadingModel);
         }
 
-        if (!$LeadingModel) {
+        if (!$this->LeadingModel) {
             return null;
         }
 
-        if ($Controller->action !== $this->mOpt($LeadingModel, 'searcher_action')) {
+        if ($Controller->action !== $this->mOpt($this->LeadingModel, 'searcher_action')) {
             return null;
         }
 
-        if (!($query = @$Controller->passedArgs[$this->mOpt($LeadingModel, 'searcher_param')])) {
-            if (!($query = @$Controller->data[$this->mOpt($LeadingModel, 'searcher_param')])) {
+        if (!($query = @$Controller->passedArgs[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
+            if (!($query = @$Controller->data[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
                 return $this->err(
-                    $LeadingModel,
                     'No search query. '
                 );
             }
         }
 
-        $response = array();
-        foreach ($Models as $Model) {
-            $res = $this->search($query, $Model);
-            foreach ($res as $k => $v) {
-                $response[] = $v;
-            }
-        }
+        $queryParams = array();
+        
+        $response = $this->search($query, $queryParams, $Models);
 
-
-        return $this->respond($Model, $response);
+        return $this->respond($response);
     }
 
-    public function search ($query, $Model) {
-        $modelName = $Model->name;
-        $ResultSet = $Model->elastic_search($query);
+    public function search ($query, $queryParams, $Models) {
+        $ResultSet = $this->LeadingModel->elastic_search($query, $queryParams, $Models);
 
         if (is_string($ResultSet)) {
-            return $this->err($Model, 'Error while doing search: %s', $ResultSet);
+            return $this->err('Error while doing search: %s', $ResultSet);
         }
         if (!$ResultSet) {
-            return $this->err($Model, 'Received an invalid ResultSet: %s', $ResultSet);
+            return $this->err('Received an invalid ResultSet: %s', $ResultSet);
         }
 
         $response = array(
@@ -109,9 +104,8 @@ class SearcherComponent extends Object {
         return $response;
     }
 
-    public function err ($Model, $format, $arg1 = null, $arg2 = null, $arg3 = null) {
+    public function err ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
         $arguments = func_get_args();
-        $Model     = array_shift($arguments);
         $format    = array_shift($arguments);
 
         $str = $format;
@@ -122,23 +116,23 @@ class SearcherComponent extends Object {
             $str = vsprintf($str, $arguments);
         }
 
-        return $this->respond($Model, array(
+        return $this->respond(array(
             'errors' => explode('; ', $str),
         ));
     }
     
-    public function respond ($Model, $response) {
+    public function respond ($response) {
         Configure::write('debug', 0);
-        $serializer = $this->mOpt($Model, 'searcher_serializer');
+
+        $serializer = $this->mOpt($this->LeadingModel, 'searcher_serializer');
 
         if (!is_callable($serializer)) {
             echo json_encode(array(
-                'errors' => array('Serializer ' . $serializer . ' was not callable', ), 
+                'errors' => array('Serializer ' . $serializer . ' was not callable', ),
             ));
         } else {
             echo call_user_func($serializer, $response);
         }
-
 
         global $xhprof_on, $TIME_START, $profiler_namespace;
         if ($xhprof_on) {
@@ -153,7 +147,7 @@ class SearcherComponent extends Object {
                 $run_id,
                 $profiler_namespace
             );
-            echo "<a href=\"".$response['__xhprof'] ."\">xhprof</a>@".$parsetime."";
+            echo "<a href=\"".$xhprof ."\">xhprof</a>@".$parsetime."";
         }
 
 

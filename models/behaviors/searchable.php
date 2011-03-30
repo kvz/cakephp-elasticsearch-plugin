@@ -30,7 +30,7 @@ class SearchableBehavior extends ModelBehavior {
                 ),
             ),
         ),
-        'field_label' => null,
+        'fake_fields' => null,
         'debug_traces' => false,
         'searcher_enabled' => true,
         'searcher_action' => 'searcher',
@@ -178,7 +178,7 @@ class SearchableBehavior extends ModelBehavior {
             $urlCb = false;
         }
         $ids = array();
-        $field_label = $this->opt($Model, 'field_label');
+        $fake_fields = $this->opt($Model, 'fake_fields');
         foreach ($results as $result) {
             if (empty($result[$Model->alias][$Model->primaryKey])) {
                 return $this->err(
@@ -192,19 +192,21 @@ class SearchableBehavior extends ModelBehavior {
 
             $result['_label'] = '';
 
-            // You can concatate fields into 1 label
-            if (is_array($field_label)) {
-                $concats = array();
-                foreach ($field_label as $path) {
-                    if (substr($path, 0, 1) === '/') {
-                        $d = Set::extract($result, $path);
-                        $concats[] = reset($d);
-                    } else {
-                        $concats[] = $path;
+            // FakeFields
+            if (is_array(reset($fake_fields))) {
+                foreach ($fake_fields as $fake_field => $xPaths) {
+                    $concats = array();
+                    foreach ($xPaths as $xPath) {
+                        if (substr($xPath, 0, 1) === '/') {
+                            $d = Set::extract($result, $xPath);
+                            $concats[] = reset($d);
+                        } else {
+                            $concats[] = $xPath;
+                        }
                     }
+
+                    $result[$fake_field] = join(' ', $concats);
                 }
-                
-                $result['_label'] = join(' ', $concats);
             } else {
                 if (array_key_exists($Model->displayField, $result[$Model->alias])) {
                     $result['_label'] = $result[$Model->alias][$Model->displayField];
@@ -260,8 +262,17 @@ class SearchableBehavior extends ModelBehavior {
         $FreeQuery = new Elastica_Query_QueryString($query);
         $BoolQuery->addMust($FreeQuery);
 
-        if (@$queryParams['enforce']) {
-            foreach ($queryParams['enforce'] as $key => $val) {
+        $dims = Set::countDim($queryParams['enforce']);
+        $enforcings = $queryParams['enforce'];
+        if ($dims < 3) {
+            $enforcings = array($enforcings);
+        }
+
+        $EnforceContainer = new Elastica_Query_Bool();
+
+        // @todo enforcings are now all AND based.
+        foreach ($enforcings as $enforcing) {
+            foreach ($enforcing as $key => $val) {
                 if (substr($key, 0 ,1) === '#' && is_array($val)) {
                     $args   = $val;
                     $Class  = array_shift($args);
@@ -271,23 +282,24 @@ class SearchableBehavior extends ModelBehavior {
                     // If null is returned, effictively remove key from enforce
                     // params
                     if ($val !== null) {
-                        $queryParams['enforce'][substr($key, 1)] = $val;
+                        $enforcing[substr($key, 1)] = $val;
                     }
-                    unset($queryParams['enforce'][$key]);
+                    unset($enforcing[$key]);
                 }
             }
-
-            if (!empty($queryParams['enforce'])) {
-                $QueryEnforcer = new Elastica_Query_Term($queryParams['enforce']);
+            if (!empty($enforcing)) {
+                $QueryEnforcer = new Elastica_Query_Term($enforcing);
                 $BoolQuery->addMust($QueryEnforcer);
             }
         }
 
+        //$BoolQuery->addMust($EnforceContainer);
+
         $Query = new Elastica_Query($BoolQuery);
-        if (@$queryParams['highlight']) {
+        if ($queryParams['highlight']) {
             $Query->setHighlight($queryParams['highlight']);
         }
-        if (@$queryParams['limit']) {
+        if ($queryParams['limit']) {
             $Query->setLimit($queryParams['limit']);
         }
         if (@$queryParams['sort']) {
@@ -310,11 +322,11 @@ class SearchableBehavior extends ModelBehavior {
 
         // Strip model from args if needed
         if (is_object(@$args[0])) {
-            $Model = array_shift($args);
+            $LeadingModel = array_shift($args);
         } else if (is_string(@$args[0])) {
-            $Model = ClassRegistry::init(array_shift($args));
+            $LeadingModel = ClassRegistry::init(array_shift($args));
         }
-        if (empty($Model)) {
+        if (empty($LeadingModel)) {
             return $this->err('First argument needs to be a valid model');
         }
 
@@ -334,35 +346,77 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // queryParams
-        $queryParams = @$args[0] ? array_shift($args) : array();
+        $queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
 
         // All models
-        $OnModels = @$args[0] ? array_shift($args) : array();
+        $ManyModels = array_key_exists(0, $args) ? array_shift($args) : array();
+        if (!$ManyModels) {
+            $ManyModels = array($LeadingModel);
+        }
 
-        $queryParams = $this->_queryParams($Model, $queryParams, array(
+
+        $queryParams = $this->_queryParams($LeadingModel, $queryParams, array(
             'enforce',
             'highlight',
             'limit',
         ));
+        $enforcings = array();
+        foreach ($ManyModels as $Model) {
+            $qParams = $this->_queryParams($Model, $queryParams, array(
+                'enforce',
+            ));
+            $enforcings[] = @$qParams['enforce'];
+        }
 
+        $queryParams['enforce'] = array_unique($enforcings);
 
+        $Query = $this->Query($query, $queryParams);
+        
         // Search documents
         try {
             // Get index
-            list($Index, $Type) = $this->IndexType($Model);
+            list($Index, $Type) = $this->IndexType($LeadingModel);
 
-            $Query = $this->Query($query, $queryParams);
-            $ResultSet = $Type->search($Query);
+            if (count($ManyModels) > 1) {
+                // Index search
+                $ResultSet = $Index->search($Query);
+            } else {
+                // Type search
+                $ResultSet = $Type->search($Query);
+            }
 
             return $ResultSet;
         } catch (Exception $Exception) {
             $msg = $Exception->getMessage();
-            if ($this->opt($Model, 'debug_traces')) {
+            if ($this->opt($LeadingModel, 'debug_traces')) {
                 $msg .= ' (' . $Exception->getTraceAsString() . ')';
             }
 
             return $msg;
         }
+    }
+
+    protected function _allFields ($modelAlias, $params) {
+        $flats  = Set::flatten($params, '/');
+
+        $fields = array();
+        foreach ($flats as $flat => $field) {
+            $flat = '/' . $flat;
+            if (false !== ($pos = strpos($flat, '/fields'))) {
+                $flat   = substr($flat, 0, $pos);
+                $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
+
+                if ($prefix === '') {
+                    $prefix = '/' . $modelAlias;
+                }
+
+                $field  = $prefix . '/' . $field;
+                
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 
     /**
@@ -383,22 +437,7 @@ class SearchableBehavior extends ModelBehavior {
             }
 
             if (!array_key_exists($Model->alias, $this->_fields)) {
-                $this->_fields[$Model->alias] = false;
-
-                if (!($ResultSet = $this->search($Model, '*', array('limit' => 1, )))) {
-                    return $val;
-                }
-                if (!is_object($ResultSet)) {
-                    return $val;
-                }
-                if (!($results = $ResultSet->getResults())) {
-                    return $val;
-                }
-                if (!($result = @$results[0])) {
-                    return $val;
-                }
-
-                $this->_fields[$Model->alias] = array_keys($result->getData());
+                $this->_fields[$Model->alias] = $this->_allFields($Model->alias, $Model->opt('index_find_params'));
             }
 
             if (is_array($this->_fields[$Model->alias])) {

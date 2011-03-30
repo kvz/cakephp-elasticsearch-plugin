@@ -56,21 +56,53 @@ app/models/ticket.php (full example)
             'searcher_action' => 'searcher',
             'searcher_param' => 'q',
             'searcher_serializer' => 'json_encode',
-            'field_label' => array('/Product/description', '/BasketItem/description'),
+            'fake_fields' => array(
+                '_label' => array('/Product/description', '/BasketItem/description'),
+            ),
             'index_name' => 'main',
             'index_chunksize' => 10000,
             'index_find_params' => array(
                 'limit' => 1,
                 'fields' => array(
+                    // It's important you name your fields.
                     'subject',
                     'from',
                 ),
                 'contain' => array(
-                    'Customer',
-                    'TicketResponse',
-                    'TicketObjectLink(foreign_model,foreign_id)',
-                    'TicketPriority(code)',
-                    'TicketQueue(name)',
+                    'Customer' => array(
+                        // It's important you name your fields.
+                        'fields' => array(
+                            'id',
+                            'name',
+                        ),
+                    ),
+                    'TicketResponse' => array(
+                        // It's important you name your fields.
+                        'fields' => array(
+                            'id',
+                            'content',
+                        ),
+                    ),
+                    'TicketObjectLink' => array(
+                        // It's important you name your fields.
+                        'fields' => array(
+                            'foreign_model',
+                            'foreign_id',
+                        ),
+                    ),
+                    'TicketPriority' => array(
+                        // It's important you name your fields.
+                        'fields' => array(
+                            'code',
+                            'from',
+                        ),
+                    ),
+                    'TicketQueue' => array(
+                        // It's important you name your fields.
+                        'fields' => array(
+                            'name',
+                        ),
+                    ),
                 ),
                 'order' => array(
                     'Ticket.id' => 'DESC',
