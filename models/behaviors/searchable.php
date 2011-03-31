@@ -30,7 +30,7 @@ class SearchableBehavior extends ModelBehavior {
                 ),
             ),
         ),
-        'fake_fields' => null,
+        'fake_fields' => array(),
         'debug_traces' => false,
         'searcher_enabled' => true,
         'searcher_action' => 'searcher',
