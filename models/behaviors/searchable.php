@@ -188,52 +188,56 @@ class SearchableBehavior extends ModelBehavior {
                     $Model->primaryKey
                 );
             }
-            $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
 
-            $result['_label'] = '';
+
+            $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
+            $flat = Set::flatten($result, '/');
+
+            $flat['_label'] = '';
+            if (array_key_exists($Model->displayField, $result[$Model->alias])) {
+                $flat['_label'] = $result[$Model->alias][$Model->displayField];
+            }
 
             // FakeFields
             if (is_array(reset($fake_fields))) {
                 foreach ($fake_fields as $fake_field => $xPaths) {
                     $concats = array();
                     foreach ($xPaths as $xPath) {
-                        if (substr($xPath, 0, 1) === '/') {
-                            $d = Set::extract($result, $xPath);
-                            $concats[] = reset($d);
+                        if (array_key_exists($xPath, $flat)) {
+                            $concats[] = $flat[$xPath];
                         } else {
                             $concats[] = $xPath;
                         }
                     }
 
-                    $result[$fake_field] = join(' ', $concats);
-                }
-            } else {
-                if (array_key_exists($Model->displayField, $result[$Model->alias])) {
-                    $result['_label'] = $result[$Model->alias][$Model->displayField];
+                    $flat[$fake_field] = join(' ', $concats);
                 }
             }
 
-            $result['_descr'] = '';
+            $flat['_descr'] = '';
             if (array_key_exists(@$Model->descripField, $result[$Model->alias])) {
-                $result['_descr'] = $result[$Model->alias][$Model->descripField];
+                $flat['_descr'] = $flat[$Model->alias][$Model->descripField];
             }
 
-            $result['_model'] = $Model->name;
+            $flat['_model'] = $Model->name;
             if (!@$Model->titlePlu) {
                 if (!@$Model->title) {
-                    $Model->title = Inflector::humanize(Inflector::underscore($result['_model']));
+                    $Model->title = Inflector::humanize(Inflector::underscore($flat['_model']));
                 }
                 $Model->titlePlu = Inflector::pluralize($Model->title);
             }
-            $result['_model_title'] = $Model->titlePlu;
+            $flat['_model_title'] = $Model->titlePlu;
 
-            $result['_url']   = '';
+            $flat['_url']   = '';
             if (is_array($urlCb)) {
-                $result['_url'] = call_user_func($urlCb, $result['_id'], $result['_model']);
+                $flat['_url'] = call_user_func($urlCb, $flat['_id'], $flat['_model']);
             }
 
+            
+            prd($flat);
+
             $ids[] = $result['_id'];
-            $Doc   = new Elastica_Document($result['_id'], Set::flatten($result, '/'));
+            $Doc   = new Elastica_Document($flat['_id'], $flat);
             if (!$Type->addDocument($Doc)) {
                 return $this->err(
                     $Model,
