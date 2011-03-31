@@ -20,6 +20,12 @@ to Elasticsearch.
 
 ## Installation
 
+### Server
+
+On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-elasticsearch-on-debian.html)
+
+### (Cake)PHP Client
+
     cd app/plugins
     git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git elasticsearch
 
@@ -155,6 +161,7 @@ and instruct to search on everything like so:
         public $components = array(
             'Elasticsearch.Searcher' => array(
                 'model' => '_all',
+                'leading_model' => 'Ticket',
             ),
             // ... etc
 

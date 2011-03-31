@@ -350,29 +350,13 @@ class SearchableBehavior extends ModelBehavior {
         $queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
 
         // All models
-        $ManyModels = array_key_exists(0, $args) ? array_shift($args) : array();
-        if (!$ManyModels) {
-            $ManyModels = array($LeadingModel);
-        }
-
+        $fullIndex = array_key_exists(0, $args) ? array_shift($args) : false;
 
         $queryParams = $this->_queryParams($LeadingModel, $queryParams, array(
             'enforce',
             'highlight',
             'limit',
         ));
-        $enforcings = array();
-        foreach ($ManyModels as $Model) {
-            $qParams = $this->_queryParams($Model, $queryParams, array(
-                'enforce',
-            ));
-            if (@$qParams['enforce']) {
-                $enforcings[] = $qParams['enforce'];
-            }
-        }
-
-        $queryParams['enforce'] = array_unique($enforcings);
-
         $Query = $this->Query($query, $queryParams);
         
         // Search documents
@@ -380,7 +364,7 @@ class SearchableBehavior extends ModelBehavior {
             // Get index
             list($Index, $Type) = $this->IndexType($LeadingModel);
 
-            if (count($ManyModels) > 1) {
+            if ($fullIndex) {
                 // Index search
                 $ResultSet = $Index->search($Query);
             } else {

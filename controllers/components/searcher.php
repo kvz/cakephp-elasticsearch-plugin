@@ -24,11 +24,11 @@ class SearcherComponent extends Object {
     public function searchAction () {
         App::import('Lib', 'Elasticsearch.Elasticsearch');
         if ($this->opt('model') === '_all') {
-            $Models = Elasticsearch::allModels(true);
-            $this->LeadingModel = reset($Models);
+            $this->LeadingModel = ClassRegistry::init($this->opt('leading_model'));
+            $fullIndex = true;
         } else {
             $this->LeadingModel = $this->isEnabled($this->Controller);
-            $Models = array($this->LeadingModel);
+            $fullIndex = false;
         }
 
         if (!$this->LeadingModel) {
@@ -49,13 +49,13 @@ class SearcherComponent extends Object {
 
         $queryParams = array();
         
-        $response = $this->search($query, $queryParams, $Models);
+        $response = $this->search($query, $queryParams, $fullIndex);
 
         return $this->respond($response);
     }
 
-    public function search ($query, $queryParams, $Models) {
-        $ResultSet = $this->LeadingModel->elastic_search($query, $queryParams, $Models);
+    public function search ($query, $queryParams, $fullIndex) {
+        $ResultSet = $this->LeadingModel->elastic_search($query, $queryParams, $fullIndex);
 
         if (is_string($ResultSet)) {
             return $this->err('Error while doing search: %s', $ResultSet);
