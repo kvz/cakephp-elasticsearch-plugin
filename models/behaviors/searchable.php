@@ -37,7 +37,7 @@ class SearchableBehavior extends ModelBehavior {
         'searcher_param' => 'q',
         'searcher_serializer' => 'json_encode',
         'auto_update' => false,
-        'limit' => 4,
+        'limit' => 10,
         'index_find_params' => array(),
         'index_name' => 'main',
         'index_chunksize' => 10000,
@@ -265,7 +265,7 @@ class SearchableBehavior extends ModelBehavior {
 
         $dims = Set::countDim($queryParams['enforce']);
         $enforcings = $queryParams['enforce'];
-        if ($dims < 3) {
+        if ($dims < 3 && !empty($enforcings)) {
             $enforcings = array($enforcings);
         }
 
@@ -366,7 +366,9 @@ class SearchableBehavior extends ModelBehavior {
             $qParams = $this->_queryParams($Model, $queryParams, array(
                 'enforce',
             ));
-            $enforcings[] = @$qParams['enforce'];
+            if (@$qParams['enforce']) {
+                $enforcings[] = $qParams['enforce'];
+            }
         }
 
         $queryParams['enforce'] = array_unique($enforcings);
