@@ -26,12 +26,13 @@ On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-
 
 ### PHP Client
     
-    cd /usr/src/
+    [ -d /var/git ] || mkdir -p /var/git
+    cd /var/git
     [ -d elastica/.git ] || git clone git://github.com/ruflin/Elastica.git elastica
     cd elastica
     git fetch origin
     git checkout f9654f9 # Tested & compatible
-    ln -nfs /usr/src/elastica/lib/Elastica /usr/share/php/Elastica
+    ln -nfs /var/git/elastica/lib/Elastica /usr/share/php/Elastica
     
 ### CakePHP Plugin
 
