@@ -30,8 +30,8 @@ On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-
     [ -d elastica/.git ] || git clone git://github.com/ruflin/Elastica.git elastica
     cd elastica
     git fetch origin
-    git checkout -q -b tested_with_cakeplugin f9654f9 # Tested & compatible
-    rsync --progress -a lib/* /usr/share/php/
+    git checkout f9654f9 # Tested & compatible
+    ln -nfs /usr/src/elastica/lib/Elastica /usr/share/php/Elastica
     
 ### CakePHP Plugin
 
