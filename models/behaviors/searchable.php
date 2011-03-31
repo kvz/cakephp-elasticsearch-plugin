@@ -251,15 +251,27 @@ class SearchableBehavior extends ModelBehavior {
 
     protected function _queryParams ($Model, $queryParams, $keys) {
         foreach ($keys as $key) {
-            if (!array_key_exists($key, $queryParams) && ($opt = $this->opt($Model, $key))) {
+            if (array_key_exists($key, $queryParams)) {
+                continue;
+            }
+            
+            if (($opt = $this->opt($Model, $key))) {
                 $queryParams[$key] = $opt;
+            } else {
+                $queryParams[$key] = null;
             }
         }
         
         return $queryParams;
     }
 
-    public function Query ($query, $queryParams) {
+    public function Query ($Model, $query, $queryParams) {
+        $queryParams = $this->_queryParams($Model, $queryParams, array(
+            'enforce',
+            'highlight',
+            'limit',
+        ));
+
         $BoolQuery = new Elastica_Query_Bool();
         
         $FreeQuery = new Elastica_Query_QueryString($query);
@@ -302,7 +314,7 @@ class SearchableBehavior extends ModelBehavior {
             $Query->setHighlight($queryParams['highlight']);
         }
         if ($queryParams['limit']) {
-            $Query->setLimit($queryParams['limit']);
+            $Query->setSize($queryParams['limit']);
         }
         if (@$queryParams['sort']) {
             $Query->setSort($sort);
@@ -353,12 +365,8 @@ class SearchableBehavior extends ModelBehavior {
         // All models
         $fullIndex = array_key_exists(0, $args) ? array_shift($args) : false;
 
-        $queryParams = $this->_queryParams($LeadingModel, $queryParams, array(
-            'enforce',
-            'highlight',
-            'limit',
-        ));
-        $Query = $this->Query($query, $queryParams);
+        // Build Query
+        $Query = $this->Query($LeadingModel, $query, $queryParams);
         
         // Search documents
         try {

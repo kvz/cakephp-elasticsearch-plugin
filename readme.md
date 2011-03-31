@@ -35,8 +35,15 @@ On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-
     
 ### CakePHP Plugin
 
+As a fake submodule
+
     cd ${YOURAPP}/plugins
     git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git elasticsearch
+
+As a real submodule
+
+    cd ${YOURAPP}/plugins
+    git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git plugins/elasticsearch
 
 ## Integration
 
