@@ -221,30 +221,22 @@ Assuming you have included that library, and have an input field with attributes
     curl -XGET 'http://127.0.0.1:9200/_status?pretty=true'
     
     # Dangerous: Delete an entire index
-    curl -XDELETE 'http://127.0.0.1:9200/testme'
+    curl -XDELETE 'http://127.0.0.1:9200/main'
 
     # Dangerous: Delete an entire type
-    curl -XDELETE 'http://127.0.0.1:9200/main/dns_domain'
+    curl -XDELETE 'http://127.0.0.1:9200/main/ticket'
 
     # Get all tickets
-    curl -XGET http://127.0.0.1:9200/main/dns_domain/_search -d '{
+    curl -XGET http://127.0.0.1:9200/main/ticket/_search -d '{
         "query" : {
-            "query" : "**"
+            "field" : {
+                "_all" : "**"
+            }
         }
     }'
 
     # Get everything
     curl -XGET http://127.0.0.1:9200/main/_search?pretty=true -d '{
-        "query" : {
-            "field" : {
-                "_all" : "**"
-            }
-        },
-        "size" : 100000
-    }'
-
-    # Search through domains
-    time curl -XGET http://127.0.0.1:9200/main/dns_domain/_search?pretty=true -d '{
         "query" : {
             "field" : {
                 "_all" : "**"

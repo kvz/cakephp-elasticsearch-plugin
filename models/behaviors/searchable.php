@@ -233,9 +233,6 @@ class SearchableBehavior extends ModelBehavior {
                 $flat['_url'] = call_user_func($urlCb, $flat['_id'], $flat['_model']);
             }
 
-            
-            prd($flat);
-
             $ids[] = $result['_id'];
             $Doc   = new Elastica_Document($flat['_id'], $flat);
             if (!$Type->addDocument($Doc)) {
