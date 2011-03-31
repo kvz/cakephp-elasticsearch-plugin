@@ -265,15 +265,16 @@ class SearchableBehavior extends ModelBehavior {
         $FreeQuery = new Elastica_Query_QueryString($query);
         $BoolQuery->addMust($FreeQuery);
 
-        $dims = Set::countDim($queryParams['enforce']);
-        $enforcings = $queryParams['enforce'];
-        if ($dims < 3 && !empty($enforcings)) {
-            $enforcings = array($enforcings);
+        if (!@$queryParams['enforce']) {
+            $enforcings = array();
+        } else {
+            $dims = Set::countDim($queryParams['enforce']);
+            $enforcings = $queryParams['enforce'];
+            if ($dims < 3 && !empty($enforcings)) {
+                $enforcings = array($enforcings);
+            }
         }
 
-        $EnforceContainer = new Elastica_Query_Bool();
-
-        // @todo enforcings are now all AND based.
         foreach ($enforcings as $enforcing) {
             foreach ($enforcing as $key => $val) {
                 if (substr($key, 0 ,1) === '#' && is_array($val)) {
@@ -295,8 +296,6 @@ class SearchableBehavior extends ModelBehavior {
                 $BoolQuery->addMust($QueryEnforcer);
             }
         }
-
-        //$BoolQuery->addMust($EnforceContainer);
 
         $Query = new Elastica_Query($BoolQuery);
         if ($queryParams['highlight']) {
