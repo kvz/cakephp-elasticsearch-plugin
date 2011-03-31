@@ -24,9 +24,18 @@ to Elasticsearch.
 
 On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-elasticsearch-on-debian.html)
 
-### (Cake)PHP Client
+### PHP Client
+    
+    cd /usr/src/
+    [ -d elastica/.git ] || git clone git://github.com/ruflin/Elastica.git elastica
+    cd elastica
+    git fetch origin
+    git checkout -bf tested_with_cakeplugin f9654f9 # Tested & compatible
+    rsync --progress -a lib/* /usr/share/php/
+    
+### CakePHP Plugin
 
-    cd app/plugins
+    cd ${YOURAPP}/plugins
     git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git elasticsearch
 
 ## Integration

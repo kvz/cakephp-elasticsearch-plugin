@@ -9,7 +9,7 @@
  * Licensed under The MIT License
  * Redistributions of files must retain the above copyright notice.
  */
-SearchableBehavior::createAutoloader(dirname(dirname(dirname(__FILE__))) . '/vendors/Elastica/lib', 'Elastica_');
+SearchableBehavior::createAutoloader('Elastica_');
 class SearchableBehavior extends ModelBehavior {
     
     public $mapMethods = array(
@@ -52,9 +52,11 @@ class SearchableBehavior extends ModelBehavior {
     public $errors = array();
 
     protected static $_autoLoaderPrefix = '';
-    public static function createAutoloader ($path, $prefix = '') {
+    public static function createAutoloader ($prefix = '', $path = null) {
         self::$_autoLoaderPrefix = $prefix;
-        set_include_path(get_include_path() . PATH_SEPARATOR . $path);
+        if ($path) {
+            set_include_path(get_include_path() . PATH_SEPARATOR . $path);
+        }
         spl_autoload_register(array('SearchableBehavior', 'autoloader'));
     }
     public static function autoloader ($className) {
