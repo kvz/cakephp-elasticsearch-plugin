@@ -18,15 +18,16 @@ class SearcherComponent extends Object {
             $this->_default,
             $settings
         );
+        $this->Controller = $Controller;
     }
     
-    public function startup ($Controller) {
+    public function searchAction () {
         App::import('Lib', 'Elasticsearch.Elasticsearch');
         if ($this->opt('model') === '_all') {
             $Models = Elasticsearch::allModels(true);
             $this->LeadingModel = reset($Models);
         } else {
-            $this->LeadingModel = $this->isEnabled($Controller);
+            $this->LeadingModel = $this->isEnabled($this->Controller);
             $Models = array($this->LeadingModel);
         }
 
@@ -34,12 +35,12 @@ class SearcherComponent extends Object {
             return null;
         }
 
-        if ($Controller->action !== $this->mOpt($this->LeadingModel, 'searcher_action')) {
+        if ($this->Controller->action !== $this->mOpt($this->LeadingModel, 'searcher_action')) {
             return null;
         }
 
-        if (!($query = @$Controller->passedArgs[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
-            if (!($query = @$Controller->data[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
+        if (!($query = @$this->Controller->passedArgs[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
+            if (!($query = @$this->Controller->data[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
                 return $this->err(
                     'No search query. '
                 );

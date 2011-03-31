@@ -151,12 +151,16 @@ be restricted the same way.
 If you want to search on all models, you could make a dedicated search controller
 and instruct to search on everything like so:
 
-    class CustomersController extends AppController {
+    class SearchersController extends AppController {
         public $components = array(
             'Elasticsearch.Searcher' => array(
                 'model' => '_all',
             ),
             // ... etc
+
+        public function searcher () {
+            $this->Searcher->searchAction();
+        }
 
 One known limitation is that the Elasticsearch plugin will only look at the
 first configured Model for configuration parameters like `searcher_param`
