@@ -11,6 +11,10 @@ App::import('Lib', 'Elasticsearch.Elasticsearch');
 class IndexerShell extends TrueShell {
 	public $tasks = array();
 
+    public function nout ($str) {
+        $this->out($str, 0);
+    }
+
     public function fill ($modelName = null) {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
@@ -19,29 +23,27 @@ class IndexerShell extends TrueShell {
             $Models = array(ClassRegistry::init($modelName));
         }
 
-        foreach ($Models as $Model) {
-            $this->info('Getting ready to index %s', $Model->name);
+        $cbProgress = array($this, 'nout');
 
-            if (!is_array($ids = $Model->elastic_index())) {
+        foreach ($Models as $Model) {
+            $this->info('> Indexing %s', $Model->name);
+            if (false === ($count = $Model->elastic_index($cbProgress))) {
                 return $this->err(
-                    'Error indexing model: %s. ids: %s. errors: %s',
+                    'Error indexing model: %s. errors: %s',
                     $Model->name,
-                    $ids,
                     $Model->Behaviors->Searchable->errors
                 );
             }
 
-            $txtIds = '#' . join(', #', $ids);
-            if (strlen($txtIds) > 33) {
-                $txtIds = substr($txtIds, 0, 30) . '...';
-            }
-
+            $this->out('');
+            
             $this->info(
-                '%7s %18s have been added to the Elastic index ids: %s',
-                count($ids),
-                $Model->name,
-                $txtIds
+                '%7s %18s have been added to the Elastic index',
+                $count,
+                $Model->name
             );
+            
+            $this->out('', 2);
         }
     }
 

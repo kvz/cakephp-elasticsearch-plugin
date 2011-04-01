@@ -37,6 +37,7 @@ class SearchableBehavior extends ModelBehavior {
         'searcher_param' => 'q',
         'searcher_serializer' => 'json_encode',
         'auto_update' => false,
+        'cb_progress' => false,
         'limit' => 10,
         'index_find_params' => array(),
         'index_name' => 'main',
@@ -144,6 +145,13 @@ class SearchableBehavior extends ModelBehavior {
                 }
             }
         }
+        
+        // cbProgress
+        $cbProgress = array_key_exists(0, $args) ? array_shift($args) : null;
+        if (is_callable($cbProgress)) {
+            $this->opt($Model, 'cb_progress', $cbProgress);
+        }
+
 
         // Create index
         list($Index, $Type) = $this->IndexType($Model, true);
@@ -157,12 +165,12 @@ class SearchableBehavior extends ModelBehavior {
 
         $offset = 0;
         $limit  = $this->opt($Model, 'index_chunksize');
-        $ids    = array();
+        $count  = 0;
         while (true) {
-            $curIds = $this->_indexChunk($Model, $Index, $Type, $offset, $limit);
-            $ids    = Set::merge($ids, $curIds);
+            $curCount = $this->_indexChunk($Model, $Index, $Type, $offset, $limit);
+            $count   += $curCount;
 
-            if (count($curIds) < $limit) {
+            if ($curCount < $limit) {
                 break;
             }
             $offset += $limit;
@@ -171,7 +179,16 @@ class SearchableBehavior extends ModelBehavior {
         // Index needs a moment to be updated
         $Index->refresh();
 
-        return $ids;
+        return $count;
+    }
+
+    public function progress ($Model, $str) {
+        $cbProgress = $this->opt($Model, 'cb_progress');
+        if (!is_callable($cbProgress)) {
+            return;
+        }
+
+        return call_user_func($cbProgress, $str);
     }
 
     protected function _indexChunk ($Model, $Index, $Type, $offset, $limit) {
@@ -184,7 +201,8 @@ class SearchableBehavior extends ModelBehavior {
         if (empty($params['limit'])) {
             $params['limit']  = $limit;
         }
-
+        
+        $this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . $params['limit'] . ')');
         $results = $Model->find('all', $params);
 
         if (empty($results)) {
@@ -200,8 +218,8 @@ class SearchableBehavior extends ModelBehavior {
         if (!method_exists($urlCb[0], $urlCb[1])) {
             $urlCb = false;
         }
-        $ids = array();
-        $Docs = array();
+        $count = 0;
+        $Docs  = array();
         $fake_fields = $this->opt($Model, 'fake_fields');
         foreach ($results as $result) {
             if (empty($result[$Model->alias][$Model->primaryKey])) {
@@ -213,9 +231,12 @@ class SearchableBehavior extends ModelBehavior {
                 );
             }
 
-
             $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
             $flat = Set::flatten($result, '/');
+
+            if (!($result['_id'] % 100)) {
+                $this->progress($Model, '(compile: @' . $result['_id'] . ')');
+            }
 
             $flat['_label'] = '';
             if (array_key_exists($Model->displayField, $result[$Model->alias])) {
@@ -259,19 +280,20 @@ class SearchableBehavior extends ModelBehavior {
 
 
             $Doc    = new Elastica_Document($flat['_id'], $flat);
-            $ids[]  = $result['_id'];
             $Docs[] = $Doc;
+            $count++;
         }
 
+        $this->progress($Model, '(store)' . "\n");
         if (!$Type->addDocuments($Docs)) {
             return $this->err(
                 $Model,
-                'Unable to add documents %s',
-                '#' . join(', #', $ids)
+                'Unable to add %s documents',
+                $count
             );
         }
 
-        return $ids;
+        return $count;
     }
 
     protected function _queryParams ($Model, $queryParams, $keys) {
