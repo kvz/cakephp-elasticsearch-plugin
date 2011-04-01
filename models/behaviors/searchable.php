@@ -87,6 +87,8 @@ class SearchableBehavior extends ModelBehavior {
                 $DB->elastic['host'],
                 $DB->elastic['port']
             );
+            $this->_Client->host = $DB->elastic['host'];
+            $this->_Client->port = $DB->elastic['port'];
         }
 
         return $this->_Client;
@@ -106,6 +108,22 @@ class SearchableBehavior extends ModelBehavior {
         return $results;
     }
 
+    public function ping () {
+        // Ping
+        $timeout = 3;
+        if (!($fp = fsockopen($this->Client()->host, $this->Client()->port, $errno, $errstr, $timeout))) {
+            return $this->err(
+                'Unable to establish a connection to %s:%s in %s seconds. %s %s',
+                $this->Client()->host,
+                $this->Client()->port,
+                $timeout,
+                $errno,
+                $errstr
+            );
+        }
+        fclose($fp);
+        return true;
+    }
 
     public function index () {
         $args = func_get_args();
@@ -133,6 +151,9 @@ class SearchableBehavior extends ModelBehavior {
         // Get records
         $Model->Behaviors->attach('Containable');
 
+        if (!$this->ping()) {
+            return false;
+        }
 
         $offset = 0;
         $limit  = $this->opt($Model, 'index_chunksize');
