@@ -178,7 +178,7 @@ class SearcherComponent extends Object {
 
         $Model = $Controller->$modelName;
 
-        return Elasticsearch::isEnabledOnModel($Model);
+        return ($Model->Behaviors->attached('Searchable') && $Model->elastic_enabled());
     }
     
     public function mOpt ($Model, $key) {

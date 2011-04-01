@@ -14,20 +14,19 @@ class IndexerShell extends TrueShell {
     public function fill ($modelName = null) {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
-            $models = Elasticsearch::allModels();
+            $Models = $this->allModels(true);
         } else {
-            $models = array($modelName);
+            $Models = array(ClassRegistry::init($Model->alias));
         }
 
-        foreach ($models as $modelName) {
-            if (!($Model = ClassRegistry::init($modelName))) {
-                return $this->err('Can\'t instantiate model: %s', $modelName);
-            }
+        foreach ($Models as $Model) {
+            $hum = Inflector::pluralize(Inflector::humanize($Model->alias));
+            $this->info('Getting ready to index %s', $hum);
 
             if (!is_array($ids = $Model->elastic_index())) {
                 return $this->err(
                     'Error indexing model: %s. ids: %s. errors: %s',
-                    $modelName,
+                    $Model->alias,
                     $ids,
                     $Model->Behaviors->Searchable->errors
                 );
@@ -41,7 +40,7 @@ class IndexerShell extends TrueShell {
             $this->info(
                 '%7s %18s have been added to the Elastic index ids: %s',
                 count($ids),
-                Inflector::pluralize(Inflector::humanize($Model->alias)),
+                $hum,
                 $txtIds
             );
         }
@@ -74,5 +73,36 @@ class IndexerShell extends TrueShell {
                 $ResultSet->next();
             }
         }
+    }
+
+    /**
+     * Goes through filesystem and returns all models that have
+     * elasticsearch enabled.
+     *
+     * @return <type>
+     */
+    public function allModels ($instantiated = false) {
+        $models = array();
+        foreach (glob(MODELS . '*.php') as $filePath) {
+            $base  = basename($filePath, '.php');
+            $modelName = Inflector::classify($base);
+
+            // Hacky, but still better than instantiating all Models:
+            $buf = file_get_contents($filePath);
+            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
+                $Model = ClassRegistry::init($modelName);
+                if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
+                    continue;
+                }
+                
+                if ($instantiated) {
+                    $models[] = $Model;
+                } else {
+                    $models[] = $modelName;
+                }
+            }
+        }
+
+        return $models;
     }
 }
