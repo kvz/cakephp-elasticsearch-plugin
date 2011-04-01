@@ -16,17 +16,16 @@ class IndexerShell extends TrueShell {
         if ($modelName === '_all' || !$modelName) {
             $Models = $this->allModels(true);
         } else {
-            $Models = array(ClassRegistry::init($Model->alias));
+            $Models = array(ClassRegistry::init($modelName));
         }
 
         foreach ($Models as $Model) {
-            $hum = Inflector::pluralize(Inflector::humanize($Model->alias));
-            $this->info('Getting ready to index %s', $hum);
+            $this->info('Getting ready to index %s', $Model->name);
 
             if (!is_array($ids = $Model->elastic_index())) {
                 return $this->err(
                     'Error indexing model: %s. ids: %s. errors: %s',
-                    $Model->alias,
+                    $Model->name,
                     $ids,
                     $Model->Behaviors->Searchable->errors
                 );
@@ -40,7 +39,7 @@ class IndexerShell extends TrueShell {
             $this->info(
                 '%7s %18s have been added to the Elastic index ids: %s',
                 count($ids),
-                $hum,
+                $Model->name,
                 $txtIds
             );
         }
