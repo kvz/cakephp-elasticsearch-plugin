@@ -197,18 +197,64 @@ class SearchableBehavior extends ModelBehavior {
             $params = array();
         }
 
-        $params['offset'] = $offset;
-        if (empty($params['limit'])) {
-            $params['limit']  = $limit;
+        $primKeyPath = $Model->alias . '/' . $Model->primaryKey;
+        $dispKeyPath = $Model->alias . '/' . $Model->displayField;
+        $descKeyPath = false;
+        if (@$Model->descripField) {
+            $descKeyPath = $Model->alias . '/' . @$Model->descripField;
         }
-        
-        $this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . $params['limit'] . ')');
-        $results = $Model->find('all', $params);
+
+        $isQuery = is_string($params);
+        if ($isQuery) {
+            $sql = str_replace(array('{offset}', '{limit}'), array($offset, $limit), $params);
+
+            // Directly addressing datasource cause we don't want
+            // any of Cake's array restructuring. We're going for raw
+            // performance here, and we're flattening everything to go
+            // into Elasticsearch anyway
+            $DB = ConnectionManager::getDataSource($Model->useDbConfig);
+            $this->progress($Model, '(select_start: ' . $offset .  '-' . ($offset+$limit) . ')');
+            if (!($rawRes = $DB->execute($sql))) {
+                return $this->err($Model, 'Error in query: %s. %s', $sql, mysql_error());
+            }
+            
+            $results = array();
+            while ($row = mysql_fetch_assoc($rawRes)) {
+                $id = $row[$primKeyPath];
+                if (empty($results[$id])) {
+                    $childCnt = 0;
+                }
+                foreach ($row as $key => $val) {
+                    $results[$id][str_replace('{n}', $childCnt, $key)] = $val;
+                }
+                $childCnt++;
+            }
+            $count = mysql_num_rows($rawRes);
+        } else {
+            $params['offset'] = $offset;
+            if (empty($params['limit'])) {
+                $params['limit']  = $limit;
+            }
+
+            $this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . ($params['offset']+$params['limit']) . ')');
+            $results = $Model->find('all', $params);
+            $count = count($results);
+        }
+
+//        $sources = ConnectionManager::sourceList();
+//        $logs = array();
+//        foreach ($sources as $source):
+//            $db =& ConnectionManager::getDataSource($source);
+//            if (!$db->isInterfaceSupported('getLog')):
+//                continue;
+//            endif;
+//            $logs[$source] = $db->getLog();
+//        endforeach;
+//        prd(compact('logs'));
 
         if (empty($results)) {
             return array();
         }
-
 
         // Add documents
         $urlCb = $this->opt($Model, 'static_url_generator');
@@ -218,11 +264,17 @@ class SearchableBehavior extends ModelBehavior {
         if (!method_exists($urlCb[0], $urlCb[1])) {
             $urlCb = false;
         }
-        $count = 0;
         $Docs  = array();
         $fake_fields = $this->opt($Model, 'fake_fields');
+
         foreach ($results as $result) {
-            if (empty($result[$Model->alias][$Model->primaryKey])) {
+            if ($isQuery) {
+                $flat = $result;
+            } else {
+                $flat = Set::flatten($result, '/');
+            }
+
+            if (empty($flat[$primKeyPath])) {
                 return $this->err(
                     $Model,
                     'I need at least primary key: %s->%s inside the index data. Please include in the index_find_params',
@@ -231,16 +283,15 @@ class SearchableBehavior extends ModelBehavior {
                 );
             }
 
-            $result['_id'] = $result[$Model->alias][$Model->primaryKey];;
-            $flat = Set::flatten($result, '/');
+            $flat['_id'] = $flat[$primKeyPath];
 
-            if (!($result['_id'] % 100)) {
-                $this->progress($Model, '(compile: @' . $result['_id'] . ')');
+            if (!($flat['_id'] % 100)) {
+                $this->progress($Model, '(compile: @' . $flat['_id'] . ')');
             }
 
             $flat['_label'] = '';
-            if (array_key_exists($Model->displayField, $result[$Model->alias])) {
-                $flat['_label'] = $result[$Model->alias][$Model->displayField];
+            if (array_key_exists($dispKeyPath, $flat)) {
+                $flat['_label'] = $flat[$dispKeyPath];
             }
 
             // FakeFields
@@ -260,9 +311,10 @@ class SearchableBehavior extends ModelBehavior {
             }
 
             $flat['_descr'] = '';
-            if (array_key_exists(@$Model->descripField, $result[$Model->alias])) {
-                $flat['_descr'] = $flat[$Model->alias][$Model->descripField];
+            if ($descKeyPath && array_key_exists($descKeyPath, $flat)) {
+                $flat['_descr'] = $flat[$descKeyPath];
             }
+
 
             $flat['_model'] = $Model->name;
             if (!@$Model->titlePlu) {
@@ -281,14 +333,13 @@ class SearchableBehavior extends ModelBehavior {
 
             $Doc    = new Elastica_Document($flat['_id'], $flat);
             $Docs[] = $Doc;
-            $count++;
         }
 
         $this->progress($Model, '(store)' . "\n");
         if (!$Type->addDocuments($Docs)) {
             return $this->err(
                 $Model,
-                'Unable to add %s documents',
+                'Unable to add %s items',
                 $count
             );
         }

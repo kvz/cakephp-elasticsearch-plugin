@@ -70,6 +70,32 @@ app/models/ticket.php (minimal example)
         // ... etc
 
 
+app/models/ticket.php (with raw sql for huge datasets)
+
+    public $actsAs = array(
+        'Elasticsearch.Searchable' => array(
+            'index_chunksize' => 1000, // per row, not per parent object anymore..
+            'index_find_params' => '
+                SELECT
+                    `tickets`.`cc` AS \'Ticket/cc\',
+                    `tickets`.`id` AS \'Ticket/id\',
+                    `tickets`.`subject` AS \'Ticket/subject\',
+                    `tickets`.`from` AS \'Ticket/from\',
+                    `tickets`.`created` AS \'Ticket/created\',
+                    `customers`.`customer_id` AS \'Customer/customer_id\',
+                    `customers`.`name` AS \'Customer/name\',
+                    `ticket_responses`.`id` AS \'TicketRepsonse/{n}/id\',
+                    `ticket_responses`.`from` AS \'TicketRepsonse/{n}/from\',
+                    `ticket_responses`.`created` AS \'TicketRepsonse/{n}/created\'
+                FROM `tickets`
+                LEFT JOIN `ticket_responses` ON `ticket_responses`.`ticket_id` = `tickets.id`
+                LEFT JOIN `customers` ON `customers`.`customer_id` = `tickets`.`customer_id`
+                LIMIT {offset},{limit}
+            ',
+        ),
+        // ... etc
+
+
 app/models/ticket.php (full example)
 
     public $actsAs = array(
