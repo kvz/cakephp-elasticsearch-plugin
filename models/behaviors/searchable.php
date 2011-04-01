@@ -201,6 +201,7 @@ class SearchableBehavior extends ModelBehavior {
             $urlCb = false;
         }
         $ids = array();
+        $Docs = array();
         $fake_fields = $this->opt($Model, 'fake_fields');
         foreach ($results as $result) {
             if (empty($result[$Model->alias][$Model->primaryKey])) {
@@ -256,15 +257,18 @@ class SearchableBehavior extends ModelBehavior {
                 $flat['_url'] = call_user_func($urlCb, $flat['_id'], $flat['_model']);
             }
 
-            $ids[] = $result['_id'];
-            $Doc   = new Elastica_Document($flat['_id'], $flat);
-            if (!$Type->addDocument($Doc)) {
-                return $this->err(
-                    $Model,
-                    'Unable to add document %s',
-                    $result['_id']
-                );
-            }
+
+            $Doc    = new Elastica_Document($flat['_id'], $flat);
+            $ids[]  = $result['_id'];
+            $Docs[] = $Doc;
+        }
+
+        if (!$Type->addDocuments($Docs)) {
+            return $this->err(
+                $Model,
+                'Unable to add documents %s',
+                '#' . join(', #', $ids)
+            );
         }
 
         return $ids;
