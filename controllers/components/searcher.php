@@ -1,6 +1,6 @@
 <?php
 /**
- * Adds a new action: searcher to existing controllers.
+ * Adds search capability to existing controllers.
  *
  * @author    Kevin van Zonneveld <kvz@php.net>
  */
@@ -64,12 +64,9 @@ class SearcherComponent extends Object {
             return $this->err('Received an invalid ResultSet: %s', $ResultSet);
         }
 
-        $response = array(
-            'message' => 'OK',
-            'query' => $query,
-            'count' => $ResultSet->count(),
-            'results' => array(),
-        );
+        $i = 0;
+        $cats = array();
+        $results = array();
         while (($Result = $ResultSet->current())) {
             $id     = $Result->getId();
             $result = array(
@@ -94,13 +91,14 @@ class SearcherComponent extends Object {
             }
 
             // Add te response
-            $response['results'][] = $result;
+            $results[$i] = $result;
+            $cats[$i]    = $result['category'];
 
             $ResultSet->next();
+            $i++;
         }
 
-        // Trim down for jQuery autocomplete
-        $response = @$response['results'] ? @$response['results'] : array();
+        $response = Set::sort($results, '/category', 'asc');
         
         return $response;
     }
@@ -125,15 +123,13 @@ class SearcherComponent extends Object {
     public function respond ($response) {
         Configure::write('debug', 0);
 
-        $serializer = $this->mOpt($this->LeadingModel, 'searcher_serializer');
-
-        if (!is_callable($serializer)) {
-            echo json_encode(array(
-                'errors' => array('Serializer ' . $serializer . ' was not callable', ),
-            ));
-        } else {
-            echo call_user_func($serializer, $response);
+        if (!headers_sent()) {
+            header('Content-type: application/json');
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
         }
+
+        $serializer = $this->mOpt($this->LeadingModel, 'searcher_serializer');
 
         global $xhprof_on, $TIME_START, $profiler_namespace;
         if ($xhprof_on) {
@@ -148,9 +144,16 @@ class SearcherComponent extends Object {
                 $run_id,
                 $profiler_namespace
             );
-            echo "<a href=\"".$xhprof ."\">xhprof</a>@".$parsetime."";
+           $response["@" . $parsetime] = $xhprof;
         }
 
+        if (!is_callable($serializer)) {
+            echo json_encode(array(
+                'errors' => array('Serializer ' . $serializer . ' was not callable', ),
+            ));
+        } else {
+            echo call_user_func($serializer, $response);
+        }
 
         die();
     }
