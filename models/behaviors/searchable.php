@@ -525,8 +525,6 @@ class SearchableBehavior extends ModelBehavior {
             $Models = array($Model);
         }
 
-        prd(array_keys($Models));
-
         foreach ($Models as $Model) {
             $modelAlias = $Model->alias;
             $params     = $Model->elastic_search_opt('index_find_params');
