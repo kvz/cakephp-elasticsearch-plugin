@@ -44,6 +44,19 @@ class SearchableBehavior extends ModelBehavior {
         'static_url_generator' => array('{model}', 'url'),
         'error_handler' => 'php',
         'enforce' => array(),
+        'fields' => '_all',
+        'fields_excludes' => array(
+            '_url',
+            '_model',
+        ),
+    );
+
+    public $localFields = array(
+        '_label',
+        '_descr',
+        '_model',
+        '_model_title',
+        '_url',
     );
 
     protected $_Client;
@@ -393,16 +406,75 @@ class SearchableBehavior extends ModelBehavior {
         return $queryParams;
     }
 
+
+    public function execute ($method, $path, $payload) {
+
+        $conn = curl_init();
+
+		$baseUri = 'http://' . $this->Client()->host . ':' . $this->Client()->port . '/';
+		$baseUri .= $path;
+
+		curl_setopt($conn, CURLOPT_URL, $baseUri);
+		curl_setopt($conn, CURLOPT_TIMEOUT, 300);
+		curl_setopt($conn, CURLOPT_PORT, $this->Client()->port);
+		curl_setopt($conn, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
+
+		if (!empty($payload)) {
+			if (is_array($payload)) {
+				$content = json_encode($payload);
+			} else {
+				$content = $payload;
+			}
+
+			// Escaping of / not necessary. Causes problems in base64 encoding of files
+			$content = str_replace('\/', '/', $content);
+			curl_setopt($conn, CURLOPT_POSTFIELDS, $content);
+		}
+
+        $response = curl_exec($conn);
+
+        $response = json_decode($response, true);
+
+        return $response;
+    }
+
     public function Query ($Model, $query, $queryParams) {
         $queryParams = $this->_queryParams($Model, $queryParams, array(
             'enforce',
             'highlight',
             'limit',
+            'fields',
         ));
 
         $BoolQuery = new Elastica_Query_Bool();
         
         $FreeQuery = new Elastica_Query_QueryString($query);
+        if (is_array($queryParams['fields'])) {
+            $rev        = array_flip($queryParams['fields']);
+            $highFields = array_map(function ($val) {
+                return array(
+                    'fragment_size' => 200,
+                    'number_of_fragments' => 1,
+                );
+            }, $rev);
+
+            $payload = array(
+                'query' => array(
+                    'query_string' => array(
+                        'fields' => $queryParams['fields'],
+                        'query' => $query,
+                        'use_dis_max' => true,
+                    ),
+                ),
+                'highlight' => array(
+                    'pre_tags' => array('<em class="highlight">'),
+                    'post_tags' => array('</em>'),
+                    'fields' => $highFields,
+                ),
+            );
+            return array('payload' => $payload);
+        }
         $BoolQuery->addMust($FreeQuery);
 
         if (!@$queryParams['enforce']) {
@@ -492,48 +564,88 @@ class SearchableBehavior extends ModelBehavior {
 
         // Build Query
         $Query = $this->Query($LeadingModel, $query, $queryParams);
-        
-        // Search documents
-        try {
-            // Get index
-            list($Index, $Type) = $this->IndexType($LeadingModel);
 
+        if (is_array($Query)) {
+            // Custom Elasticsearch CuRL Job
             if ($LeadingModel->fullIndex) {
-                // Index search
-                $ResultSet = $Index->search($Query);
+                $r = $this->execute('GET', 'main/_search', $Query['payload']);
             } else {
-                // Type search
-                $ResultSet = $Type->search($Query);
+                // @todo needs love: use actual index-types & stuff
+                $r = $this->execute('GET', $LeadingModel->alias . '/_search', $Query['payload']);
             }
 
-            return $ResultSet;
-        } catch (Exception $Exception) {
-            $msg = $Exception->getMessage();
-            if ($this->opt($LeadingModel, 'debug_traces')) {
-                $msg .= ' (' . $Exception->getTraceAsString() . ')';
+            $results = array();
+            foreach ($r['hits']['hits'] as $hit) {
+                $results[] = array(
+                    'data' => $hit['_source'],
+                    'score' => $hit['_score'],
+                    'id' => $hit['_id'],
+                    'type' => $hit['_type'],
+                    'highlights' => $hit['highlight'],
+                );
             }
 
-            return $msg;
+            return $results;
+        } else {
+            // Elastica Job
+            
+            try {
+                // Get index
+                list($Index, $Type) = $this->IndexType($LeadingModel);
+
+                if ($LeadingModel->fullIndex) {
+                    // Index search
+                    $ResultSet = $Index->search($Query);
+                } else {
+                    // Type search
+                    $ResultSet = $Type->search($Query);
+                }
+
+                return $ResultSet;
+            } catch (Exception $Exception) {
+                $msg = $Exception->getMessage();
+                if ($this->opt($LeadingModel, 'debug_traces')) {
+                    $msg .= ' (' . $Exception->getTraceAsString() . ')';
+                }
+
+                return $msg;
+            }
         }
     }
 
-    protected function _allFields ($Model) {
+    /**
+     * Caching wrapper
+     *
+     * @todo: implement :)
+     *
+     * @param <type> $Model
+     * @return <type>
+     */
+    protected function _allFields ($Model, $unsetFields = null) {
         $key = join(',', array(
             $Model->name,
             $Model->fullIndex,
         ));
 
-        return $this->__allFields($Model);
+        if (!array_key_exists($key, $this->_fields)) {
+            $this->_fields[$key] = $this->__allFields($Model);
+        }
+
+        $fields = $this->_fields[$key];
+
+        // Filter
+        if (is_array($unsetFields))  {
+            $fields = array_diff($fields, $unsetFields);
+
+            // Re-order nummerically so this will be a js array != object
+            $fields = array_values($fields);
+        }
+
+        return $fields;
     }
 
     protected function __allFields ($Model) {
-        $fields = array(
-            '_label',
-            '_descr',
-            '_model',
-            '_model_title',
-            '_url',
-        );
+        $fields = $this->localFields;
 
         if ($Model->fullIndex === true) {
             $Models = SearchableBehavior::allModels(true);
@@ -544,7 +656,7 @@ class SearchableBehavior extends ModelBehavior {
         foreach ($Models as $Model) {
             $modelAlias  = $Model->alias;
             $modelFields = array();
-            $params      = $Model->elastic_search_opt('index_find_params');
+            $params      = $this->opt($Model, 'index_find_params');
 
             // If params is a custom query (possible for indexing speed)
             if (is_string($params)) {
@@ -553,7 +665,7 @@ class SearchableBehavior extends ModelBehavior {
                     $modelFields = $matches[1];
                 }
             } else {
-                $flats      = Set::flatten($params, '/');
+                $flats = Set::flatten($params, '/');
                 foreach ($flats as $flat => $field) {
                     $flat = '/' . $flat;
                     if (false !== ($pos = strpos($flat, '/fields'))) {
@@ -566,17 +678,30 @@ class SearchableBehavior extends ModelBehavior {
 
                         $field  = $prefix . '/' . $field;
 
+                        if (substr($field, 0, 1) === '/') {
+                            $field = substr($field, 1);
+                        }
+
                         $modelFields[] = $field;
                     }
                 }
             }
 
-            // Unset highlight_excludes
-            if (($unsetFields = $Model->elastic_search_opt('highlight_excludes')))  {
-                $modelFields = array_diff($modelFields, $unsetFields);
+            // Merge model fields in overall fields, make unique
+            $fields = array_unique(array_merge($fields, $modelFields));
+
+            // Replace {n} with range 0-3. May need to be configurable later on
+            foreach ($fields as $i => $field) {
+                if (false !== strpos($field, '{n}')) {
+                    for ($j = 0; $j <= 3; $j++) {
+                        $fields[] = str_replace('{n}', $j, $field);
+                    }
+                    unset($fields[$i]);
+                }
             }
 
-            $fields = array_merge($fields, $modelFields);
+            // Re-order nummerically so this will be a js array != object
+            $fields = array_values($fields);
         }
 
         return $fields;
@@ -592,22 +717,37 @@ class SearchableBehavior extends ModelBehavior {
      * 
      * @return array
      */
+    protected function _filter_fields ($Model, $val) {
+        if ($val === '_all' || empty($val)) {
+            if (!$this->opt($Model, 'fields_excludes')) {
+                $val = '_all';
+            } else {
+                $val = $this->_allFields(
+                    $Model,
+                    $this->opt($Model, 'fields_excludes')
+                );
+            }
+        }
+
+        return $val;
+    }
+    
     protected function _filter_highlight ($Model, $val) {
+        $val = Set::normalize($val);
         if (($params = @$val['fields']['_all'])) {
             unset($val['fields']['_all']);
             if (false !== ($k = array_search('_no_all', $val['fields'], true))) {
                 return $val;
             }
 
-            if (!array_key_exists($Model->alias, $this->_fields)) {
-                $this->_fields[$Model->alias] = $this->_allFields($Model);
-            }
+            $fields = $this->_allFields(
+                $Model,
+                $this->opt($Model, 'highlight_excludes')
+            );
 
-            if (is_array($this->_fields[$Model->alias])) {
-                foreach ($this->_fields[$Model->alias] as $field) {
-                    if (substr($field, 0, 1) === '_') {
-                        continue;
-                    }
+            // Copy original parameters to expanded fields
+            if (is_array($fields)) {
+                foreach ($fields as $field) {
                     $val['fields'][$field] = $params;
                 }
             }

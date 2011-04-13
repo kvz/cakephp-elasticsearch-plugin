@@ -64,42 +64,60 @@ class SearcherComponent extends Object {
         }
 
         $i = 0;
-        $cats = array();
+        $cats    = array();
         $results = array();
-        while (($Result = $ResultSet->current())) {
-            $id     = $Result->getId();
-            $result = array(
-                'data' => $Result->getData(),
-                'highlights' => $Result->getHighlights(),
-                'score' => $Result->getScore(),
-                'type' => $Result->getType(),
-                'id' => $id,
-            );
 
-            $result['id']    = @$result['data']['_id'];
-            $result['label'] = @$result['data']['_label'];
-            $result['descr'] = @$result['data']['_descr'];
-            $result['url']   = @$result['data']['_url'];
-            $result['model'] = @$result['data']['_model'];
-            $result['category'] = @$result['data']['_model_title'];
 
-            if (($html = @$result['highlights']['_label'][0])) {
-                $result['html'] = $html;
-            } else {
-                $result['html'] = $result['label'];
+        if (is_array($ResultSet)) {
+            foreach ($ResultSet as $result) {
+                $this->_enrich($result);
+
+                // Add te response
+                $results[$i] = $result;
+                $cats[$i]    = $result['category'];
+
+                $i++;
             }
+        } else {
+            while (($Result = $ResultSet->current())) {
+                $id     = $Result->getId();
+                $result = array(
+                    'data' => $Result->getData(),
+                    'highlights' => $Result->getHighlights(),
+                    'score' => $Result->getScore(),
+                    'type' => $Result->getType(),
+                    'id' => $id,
+                );
 
-            // Add te response
-            $results[$i] = $result;
-            $cats[$i]    = $result['category'];
+                $this->_enrich($result);
 
-            $ResultSet->next();
-            $i++;
+                // Add te response
+                $results[$i] = $result;
+                $cats[$i]    = $result['category'];
+
+                $ResultSet->next();
+                $i++;
+            }
         }
 
         $response = Set::sort($results, '/category', 'asc');
         
         return $response;
+    }
+
+    protected function _enrich(&$result) {
+        $result['id']    = @$result['data']['_id'];
+        $result['label'] = @$result['data']['_label'];
+        $result['descr'] = @$result['data']['_descr'];
+        $result['url']   = @$result['data']['_url'];
+        $result['model'] = @$result['data']['_model'];
+        $result['category'] = @$result['data']['_model_title'];
+
+        if (($html = @$result['highlights']['_label'][0])) {
+            $result['html'] = $html;
+        } else {
+            $result['html'] = $result['label'];
+        }
     }
 
     public function err ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
