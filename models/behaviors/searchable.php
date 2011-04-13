@@ -518,7 +518,22 @@ class SearchableBehavior extends ModelBehavior {
     }
 
     protected function _allFields ($Model) {
-        $fields = array();
+        $key = join(',', array(
+            $Model->name,
+            $Model->fullIndex,
+        ));
+
+        return $this->__allFields($Model);
+    }
+
+    protected function __allFields ($Model) {
+        $fields = array(
+            '_label',
+            '_descr',
+            '_model',
+            '_model_title',
+            '_url',
+        );
 
         if ($Model->fullIndex === true) {
             $Models = SearchableBehavior::allModels(true);
@@ -559,8 +574,9 @@ class SearchableBehavior extends ModelBehavior {
             }
 
             // Unset highlight_excludes
-            $unsetFields = $Model->elastic_search_opt('highlight_excludes');
-            $modelFields = array_diff($modelFields, $unsetFields);
+            if (($unsetFields = $Model->elastic_search_opt('highlight_excludes')))  {
+                $modelFields = array_diff($modelFields, $unsetFields);
+            }
 
             $fields = array_merge($fields, $modelFields);
         }
