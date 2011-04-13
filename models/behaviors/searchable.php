@@ -526,26 +526,37 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         foreach ($Models as $Model) {
-            $modelAlias = $Model->alias;
-            $params     = $Model->elastic_search_opt('index_find_params');
-            $flats      = Set::flatten($params, '/');
-            foreach ($flats as $flat => $field) {
-                $flat = '/' . $flat;
-                if (false !== ($pos = strpos($flat, '/fields'))) {
-                    $flat   = substr($flat, 0, $pos);
-                    $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
+            $modelAlias  = $Model->alias;
+            $modelFields = array();
+            $params      = $Model->elastic_search_opt('index_find_params');
 
-                    if ($prefix === '') {
-                        $prefix = '/' . $modelAlias;
+            // If params is a custom query (possible for indexing speed)
+            if (is_string($params)) {
+                $pattern = '/\sAS\s\'(([a-z0-9_\{\}]+)(\/([a-z0-9_\{\}]+))+)\'/i';
+                if (preg_match_all($pattern, $params, $matches)) {
+                    $modelFields = $matches[1];
+                }
+            } else {
+                $flats      = Set::flatten($params, '/');
+                foreach ($flats as $flat => $field) {
+                    $flat = '/' . $flat;
+                    if (false !== ($pos = strpos($flat, '/fields'))) {
+                        $flat   = substr($flat, 0, $pos);
+                        $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
+
+                        if ($prefix === '') {
+                            $prefix = '/' . $modelAlias;
+                        }
+
+                        $field  = $prefix . '/' . $field;
+
+                        $modelFields[] = $field;
                     }
-
-                    $field  = $prefix . '/' . $field;
-
-                    $fields[] = $field;
                 }
             }
-        }
 
+            $fields = array_merge($fields, $modelFields);
+        }
 
         return $fields;
     }
