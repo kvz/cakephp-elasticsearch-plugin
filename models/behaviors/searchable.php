@@ -550,9 +550,7 @@ class SearchableBehavior extends ModelBehavior {
             if (is_string($params)) {
                 $pattern = '/\sAS\s\'(([a-z0-9_\{\}]+)(\/([a-z0-9_\{\}]+))+)\'/i';
                 if (preg_match_all($pattern, $params, $matches)) {
-                    $modelFields = array_map(function ($val) {
-                        return '/' . $val;
-                    }, $matches[1]);
+                    $modelFields = $matches[1];
                 }
             } else {
                 $flats      = Set::flatten($params, '/');
@@ -563,7 +561,7 @@ class SearchableBehavior extends ModelBehavior {
                         $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
 
                         if ($prefix === '') {
-                            $prefix = '/' . $modelAlias;
+                            $prefix = $modelAlias;
                         }
 
                         $field  = $prefix . '/' . $field;
