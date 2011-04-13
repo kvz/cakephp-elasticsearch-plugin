@@ -50,7 +50,7 @@ class IndexerShell extends TrueShell {
     public function search ($modelName = null, $query = null) {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
-            $models = Elasticsearch::allModels();
+            $models = $this->allModels();
         } else {
             $models = array($modelName);
         }
@@ -76,34 +76,9 @@ class IndexerShell extends TrueShell {
         }
     }
 
-    /**
-     * Goes through filesystem and returns all models that have
-     * elasticsearch enabled.
-     *
-     * @return <type>
-     */
     public function allModels ($instantiated = false) {
-        $models = array();
-        foreach (glob(MODELS . '*.php') as $filePath) {
-            $base  = basename($filePath, '.php');
-            $modelName = Inflector::classify($base);
-
-            // Hacky, but still better than instantiating all Models:
-            $buf = file_get_contents($filePath);
-            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
-                $Model = ClassRegistry::init($modelName);
-                if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
-                    continue;
-                }
-                
-                if ($instantiated) {
-                    $models[] = $Model;
-                } else {
-                    $models[] = $modelName;
-                }
-            }
-        }
-
-        return $models;
+        require_once CAKE_CORE_INCLUDE_PATH .'/cake/libs/model/model_behavior.php';
+        require_once dirname(dirname(dirname(__FILE__))) .'/models/behaviors/searchable.php';
+        return SearchableBehavior::allModels($instantiated);
     }
 }

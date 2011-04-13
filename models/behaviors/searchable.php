@@ -9,9 +9,7 @@
  * Licensed under The MIT License
  * Redistributions of files must retain the above copyright notice.
  */
-SearchableBehavior::createAutoloader('Elastica_');
 class SearchableBehavior extends ModelBehavior {
-    
     public $mapMethods = array(
         '/elastic_search_opt/' => 'opt',
         '/elastic_search/' => 'search',
@@ -69,6 +67,37 @@ class SearchableBehavior extends ModelBehavior {
 
         $path = str_replace('_', '/', $className) . '.php';
         include($path);
+    }
+
+    /**
+     * Goes through filesystem and returns all models that have
+     * elasticsearch enabled.
+     *
+     * @return <type>
+     */
+    public static function allModels ($instantiated = false) {
+        $models = array();
+        foreach (glob(MODELS . '*.php') as $filePath) {
+            $base      = basename($filePath, '.php');
+            $modelName = Inflector::classify($base);
+
+            // Hacky, but still better than instantiating all Models:
+            $buf = file_get_contents($filePath);
+            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
+                $Model = ClassRegistry::init($modelName);
+                if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
+                    continue;
+                }
+
+                if ($instantiated) {
+                    $models[] = $Model;
+                } else {
+                    $models[] = $modelName;
+                }
+            }
+        }
+
+        return $models;
     }
 
     public function IndexType ($Model, $create = false, $reset = false) {
@@ -460,9 +489,6 @@ class SearchableBehavior extends ModelBehavior {
         // queryParams
         $queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
 
-        // All models
-        $fullIndex = array_key_exists(0, $args) ? array_shift($args) : false;
-
         // Build Query
         $Query = $this->Query($LeadingModel, $query, $queryParams);
         
@@ -471,7 +497,7 @@ class SearchableBehavior extends ModelBehavior {
             // Get index
             list($Index, $Type) = $this->IndexType($LeadingModel);
 
-            if ($fullIndex) {
+            if ($LeadingModel->fullIndex) {
                 // Index search
                 $ResultSet = $Index->search($Query);
             } else {
@@ -490,25 +516,38 @@ class SearchableBehavior extends ModelBehavior {
         }
     }
 
-    protected function _allFields ($modelAlias, $params) {
-        $flats  = Set::flatten($params, '/');
-
+    protected function _allFields ($Model) {
         $fields = array();
-        foreach ($flats as $flat => $field) {
-            $flat = '/' . $flat;
-            if (false !== ($pos = strpos($flat, '/fields'))) {
-                $flat   = substr($flat, 0, $pos);
-                $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
 
-                if ($prefix === '') {
-                    $prefix = '/' . $modelAlias;
+        if ($Model->fullIndex === true) {
+            $Models = SearchableBehavior::allModels(true);
+        } else {
+            $Models = array($Model);
+        }
+
+        prd(array_keys($Models));
+
+        foreach ($Models as $Model) {
+            $modelAlias = $Model->alias;
+            $params     = $Model->elastic_search_opt('index_find_params');
+            $flats      = Set::flatten($params, '/');
+            foreach ($flats as $flat => $field) {
+                $flat = '/' . $flat;
+                if (false !== ($pos = strpos($flat, '/fields'))) {
+                    $flat   = substr($flat, 0, $pos);
+                    $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
+
+                    if ($prefix === '') {
+                        $prefix = '/' . $modelAlias;
+                    }
+
+                    $field  = $prefix . '/' . $field;
+
+                    $fields[] = $field;
                 }
-
-                $field  = $prefix . '/' . $field;
-                
-                $fields[] = $field;
             }
         }
+
 
         return $fields;
     }
@@ -531,7 +570,7 @@ class SearchableBehavior extends ModelBehavior {
             }
 
             if (!array_key_exists($Model->alias, $this->_fields)) {
-                $this->_fields[$Model->alias] = $this->_allFields($Model->alias, $Model->opt('index_find_params'));
+                $this->_fields[$Model->alias] = $this->_allFields($Model);
             }
 
             if (is_array($this->_fields[$Model->alias])) {
@@ -664,3 +703,4 @@ class SearchableBehavior extends ModelBehavior {
         }
     }
 }
+SearchableBehavior::createAutoloader('Elastica_');
