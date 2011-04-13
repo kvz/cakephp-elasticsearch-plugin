@@ -28,6 +28,7 @@ class SearchableBehavior extends ModelBehavior {
                 ),
             ),
         ),
+        'highlight_excludes' => array(),
         'fake_fields' => array(),
         'debug_traces' => false,
         'searcher_enabled' => true,
@@ -554,6 +555,10 @@ class SearchableBehavior extends ModelBehavior {
                     }
                 }
             }
+
+            // Unset highlight_excludes
+            $unsetFields = $Model->elastic_search_opt('highlight_excludes');
+            $modelFields = array_diff($modelFields, $unsetFields);
 
             $fields = array_merge($fields, $modelFields);
         }

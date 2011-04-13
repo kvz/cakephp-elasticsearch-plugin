@@ -130,6 +130,7 @@ app/models/ticket.php (full example)
                         'fields' => array(
                             'id',
                             'content',
+                            'created',
                         ),
                     ),
                     'TicketObjectLink' => array(
@@ -161,7 +162,7 @@ app/models/ticket.php (full example)
                 'pre_tags' => array('<em class="highlight">'),
                 'post_tags' => array('</em>'),
                 'fields' => array(
-                    'TicketResponse/0/content' => array(
+                    '_all' => array(
                         'fragment_size' => 200,
                         'number_of_fragments' => 1,
                     ),
@@ -172,7 +173,14 @@ app/models/ticket.php (full example)
             'static_url_generator' => array('{model}', 'url'),
             'enforce' => array(
                 'Customer/id' => 123,
-                // callback: '#Customer/id' => array('LiveUser', 'id'),
+                // or a callback: '#Customer/id' => array('LiveUser', 'id'),
+            ),
+            'highlight_excludes' => array(
+                // if you're always restricting results by customer, that
+                // query should probably not be part of your highlight
+                // instead of dumping _all and going over all fields except Customer/id,
+                // you can also exclude it:
+                'Customer/id',
             ),
         ),
     );
