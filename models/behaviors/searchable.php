@@ -535,7 +535,9 @@ class SearchableBehavior extends ModelBehavior {
             if (is_string($params)) {
                 $pattern = '/\sAS\s\'(([a-z0-9_\{\}]+)(\/([a-z0-9_\{\}]+))+)\'/i';
                 if (preg_match_all($pattern, $params, $matches)) {
-                    $modelFields = $matches[1];
+                    $modelFields = array_map(function ($val) {
+                        return '/' . $val;
+                    }, $matches[1]);
                 }
             } else {
                 $flats      = Set::flatten($params, '/');
