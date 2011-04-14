@@ -28,7 +28,8 @@ class SearchableBehavior extends ModelBehavior {
                 ),
             ),
         ),
-        'highlight_excludes' => array(),
+        'highlight_excludes' => array(
+        ),
         'fake_fields' => array(),
         'debug_traces' => false,
         'searcher_enabled' => true,
@@ -48,6 +49,7 @@ class SearchableBehavior extends ModelBehavior {
         'fields_excludes' => array(
             '_url',
             '_model',
+            '_label',
         ),
     );
 
@@ -114,30 +116,6 @@ class SearchableBehavior extends ModelBehavior {
         return $models;
     }
 
-    public function IndexType ($Model, $create = false, $reset = false) {
-        $Index = $this->Client()->getIndex($this->opt($Model, 'index_name'));
-        if ($reset) {
-            $Index->create(array(), $reset);
-        }
-        $Type = $Index->getType(Inflector::underscore($Model->alias));
-
-        return array($Index, $Type);
-    }
-
-    public function Client () {
-        if (!$this->_Client) {
-            $DB = new DATABASE_CONFIG();
-            $this->_Client = new Elastica_Client(
-                $DB->elastic['host'],
-                $DB->elastic['port']
-            );
-            $this->_Client->host = $DB->elastic['host'];
-            $this->_Client->port = $DB->elastic['port'];
-        }
-
-        return $this->_Client;
-    }
-
     public function beforeSave ($Model) {
         if ($this->opt($Model, 'auto_update')) {
             prd('@todo');
@@ -153,6 +131,7 @@ class SearchableBehavior extends ModelBehavior {
     }
 
     public function ping () {
+        return;
         // Ping
         $timeout = 3;
         if (!($fp = fsockopen($this->Client()->host, $this->Client()->port, $errno, $errstr, $timeout))) {
@@ -195,9 +174,8 @@ class SearchableBehavior extends ModelBehavior {
             $this->opt($Model, 'cb_progress', $cbProgress);
         }
 
-
         // Create index
-        list($Index, $Type) = $this->IndexType($Model, true);
+        list($Index, $Type) = $this->indexAndType($Model, true);
 
         // Get records
         $Model->Behaviors->attach('Containable');
@@ -406,17 +384,25 @@ class SearchableBehavior extends ModelBehavior {
         return $queryParams;
     }
 
-
-    public function execute ($method, $path, $payload) {
-
+    protected function _execute ($Model, $method, $path, $payload) {
         $conn = curl_init();
 
-		$baseUri = 'http://' . $this->Client()->host . ':' . $this->Client()->port . '/';
-		$baseUri .= $path;
+        $base = $this->opt($Model, 'index_name');
+        if (!$Model->fullIndex) {
+            $base .= '/' . $this->opt($Model, 'type');
+        }
+        $path = $base . '/' . $path;
 
-		curl_setopt($conn, CURLOPT_URL, $baseUri);
+		$uri = sprintf(
+            'http://%s:%s/%s',
+            $this->opt($Model, 'host'),
+            $this->opt($Model, 'port'),
+            $path
+        );
+
+		curl_setopt($conn, CURLOPT_URL, $uri);
 		curl_setopt($conn, CURLOPT_TIMEOUT, 300);
-		curl_setopt($conn, CURLOPT_PORT, $this->Client()->port);
+		curl_setopt($conn, CURLOPT_PORT, $this->opt($Model, 'port'));
 		curl_setopt($conn, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
 
@@ -432,14 +418,20 @@ class SearchableBehavior extends ModelBehavior {
 			curl_setopt($conn, CURLOPT_POSTFIELDS, $content);
 		}
 
-        $response = curl_exec($conn);
+        $json     = curl_exec($conn);
+        $response = json_decode($json, true);
 
-        $response = json_decode($response, true);
+        if (false === $response) {
+            return sprintf('Invalid response from elasticsearch server (%s)', $json);
+        }
+        if (@$response['error']) {
+            return sprintf($Model, 'Error from elasticsearch server (%s)', @$response['error']);
+        }
 
         return $response;
     }
 
-    public function Query ($Model, $query, $queryParams) {
+    public function query ($Model, $query, $queryParams) {
         $queryParams = $this->_queryParams($Model, $queryParams, array(
             'enforce',
             'highlight',
@@ -447,80 +439,32 @@ class SearchableBehavior extends ModelBehavior {
             'fields',
         ));
 
-        $BoolQuery = new Elastica_Query_Bool();
-        
-        $FreeQuery = new Elastica_Query_QueryString($query);
-        if (is_array($queryParams['fields'])) {
-            $rev        = array_flip($queryParams['fields']);
-            $highFields = array_map(function ($val) {
-                return array(
-                    'fragment_size' => 200,
-                    'number_of_fragments' => 1,
-                );
-            }, $rev);
+        $payload = array();
 
-            $payload = array(
-                'query' => array(
-                    'query_string' => array(
-                        'fields' => $queryParams['fields'],
-                        'query' => $query,
-                        'use_dis_max' => true,
-                    ),
-                ),
-                'highlight' => array(
-                    'pre_tags' => array('<em class="highlight">'),
-                    'post_tags' => array('</em>'),
-                    'fields' => $highFields,
-                ),
-            );
-            return array('payload' => $payload);
-        }
-        $BoolQuery->addMust($FreeQuery);
-
-        if (!@$queryParams['enforce']) {
-            $enforcings = array();
-        } else {
-            $dims = Set::countDim($queryParams['enforce']);
-            $enforcings = $queryParams['enforce'];
-            if ($dims < 3 && !empty($enforcings)) {
-                $enforcings = array($enforcings);
-            }
-        }
-
-        foreach ($enforcings as $enforcing) {
-            foreach ($enforcing as $key => $val) {
-                if (substr($key, 0 ,1) === '#' && is_array($val)) {
-                    $args   = $val;
-                    $Class  = array_shift($args);
-                    $method = array_shift($args);
-
-                    $val = call_user_func_array(array($Class, $method), $args);
-                    // If null is returned, effictively remove key from enforce
-                    // params
-                    if ($val !== null) {
-                        $enforcing[substr($key, 1)] = $val;
-                    }
-                    unset($enforcing[$key]);
-                }
-            }
-            if (!empty($enforcing)) {
-                $QueryEnforcer = new Elastica_Query_Term($enforcing);
-                $BoolQuery->addMust($QueryEnforcer);
-            }
-        }
-
-        $Query = new Elastica_Query($BoolQuery);
         if ($queryParams['highlight']) {
-            $Query->setHighlight($queryParams['highlight']);
+            $payload['highlight'] = $queryParams['highlight'];
         }
         if ($queryParams['limit']) {
-            $Query->setSize($queryParams['limit']);
+            $payload['size'] = $queryParams['limit'];
         }
         if (@$queryParams['sort']) {
-            $Query->setSort($sort);
+            $payload['sort'] = $queryParams['sort'];
         }
-        
-        return $Query;
+
+        $payload['query']['bool']['must'][0]['query_string'] = array(
+            'query' => $query,
+            'use_dis_max' => true,
+        );
+        if (is_array($queryParams['fields'])) {
+            $payload['query']['bool']['must'][0]['query_string']['fields'] = $queryParams['fields'];
+        }
+
+        if ($queryParams['enforce']) {
+            $i = count ($payload['query']['bool']['must']);
+            $payload['query']['bool']['must'][$i]['term'] = $queryParams['enforce'];
+        }
+
+        return $payload;
     }
 
     /**
@@ -563,54 +507,28 @@ class SearchableBehavior extends ModelBehavior {
         $queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
 
         // Build Query
-        $Query = $this->Query($LeadingModel, $query, $queryParams);
+        $payload = $this->query($LeadingModel, $query, $queryParams);
 
-        if (is_array($Query)) {
-            // Custom Elasticsearch CuRL Job
-            if ($LeadingModel->fullIndex) {
-                $r = $this->execute('GET', 'main/_search', $Query['payload']);
-            } else {
-                // @todo needs love: use actual index-types & stuff
-                $r = $this->execute('GET', $LeadingModel->alias . '/_search', $Query['payload']);
-            }
+        // Custom Elasticsearch CuRL Job
+        $r = $this->_execute($LeadingModel, 'GET', '_search', $payload);
 
-            $results = array();
-            foreach ($r['hits']['hits'] as $hit) {
-                $results[] = array(
-                    'data' => $hit['_source'],
-                    'score' => $hit['_score'],
-                    'id' => $hit['_id'],
-                    'type' => $hit['_type'],
-                    'highlights' => $hit['highlight'],
-                );
-            }
-
-            return $results;
-        } else {
-            // Elastica Job
-            
-            try {
-                // Get index
-                list($Index, $Type) = $this->IndexType($LeadingModel);
-
-                if ($LeadingModel->fullIndex) {
-                    // Index search
-                    $ResultSet = $Index->search($Query);
-                } else {
-                    // Type search
-                    $ResultSet = $Type->search($Query);
-                }
-
-                return $ResultSet;
-            } catch (Exception $Exception) {
-                $msg = $Exception->getMessage();
-                if ($this->opt($LeadingModel, 'debug_traces')) {
-                    $msg .= ' (' . $Exception->getTraceAsString() . ')';
-                }
-
-                return $msg;
-            }
+        // String means error
+        if (is_string($r))  {
+            return $r;
         }
+
+        $results = array();
+        foreach ($r['hits']['hits'] as $hit) {
+            $results[] = array(
+                'data' => $hit['_source'],
+                'score' => $hit['_score'],
+                'id' => $hit['_id'],
+                'type' => $hit['_type'],
+                'highlights' => $hit['highlight'],
+            );
+        }
+
+        return $results;
     }
 
     /**
@@ -707,16 +625,6 @@ class SearchableBehavior extends ModelBehavior {
         return $fields;
     }
 
-    /**
-     * Hack so you can now do highlights on '_all'.
-     * Elasticsearch does not support that syntax for highlights yet,
-     * just for queries.
-     *
-     * @param object $Model
-     * @param array  $val
-     * 
-     * @return array
-     */
     protected function _filter_fields ($Model, $val) {
         if ($val === '_all' || empty($val)) {
             if (!$this->opt($Model, 'fields_excludes')) {
@@ -731,9 +639,40 @@ class SearchableBehavior extends ModelBehavior {
 
         return $val;
     }
+
+    protected function _filter_enforce ($Model, $val) {
+        foreach ($val as $k => $v) {
+            if (substr($k, 0 ,1) === '#' && is_array($v)) {
+                $args   = $v;
+                $Class  = array_shift($args);
+                $method = array_shift($args);
+
+                $v = call_user_func_array(array($Class, $method), $args);
+                // If null is returned, effictively remove key from enforce
+                // params
+                if ($v !== null) {
+                    $val[substr($k, 1)] = $v;
+                }
+                unset($val[$k]);
+            }
+        }
+
+        return $val;
+    }
     
+    /**
+     * Hack so you can now do highlights on '_all'.
+     * Elasticsearch does not support that syntax for highlights yet,
+     * just for queries.
+     *
+     * @param object $Model
+     * @param array  $val
+     *
+     * @return array
+     */
     protected function _filter_highlight ($Model, $val) {
         $val = Set::normalize($val);
+
         if (($params = @$val['fields']['_all'])) {
             unset($val['fields']['_all']);
             if (false !== ($k = array_search('_no_all', $val['fields'], true))) {
@@ -750,6 +689,11 @@ class SearchableBehavior extends ModelBehavior {
                 foreach ($fields as $field) {
                     $val['fields'][$field] = $params;
                 }
+            }
+
+            // If we exclude fields, exclude them for highlights as well
+            foreach ($this->opt($Model, 'fields_excludes') as $field_exclude) {
+                unset($val['fields'][$field_exclude]);
             }
         }
 
@@ -768,6 +712,14 @@ class SearchableBehavior extends ModelBehavior {
             $this->_default,
             $settings
         );
+
+        $DB = new DATABASE_CONFIG();
+
+        $this->settings[$Model->alias]['host'] = $DB->elastic['host'];
+        $this->settings[$Model->alias]['port'] = $DB->elastic['port'];
+
+        //$this->settings[$Model->alias]['index_name'] = $this->opt($Model, 'index_name');
+        $this->settings[$Model->alias]['type'] = Inflector::underscore($Model->alias);
     }
 
     public function err ($Model, $format, $arg1 = null, $arg2 = null, $arg3 = null) {

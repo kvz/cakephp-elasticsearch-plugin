@@ -54,50 +54,27 @@ class SearcherComponent extends Object {
     }
 
     public function search ($query, $queryParams) {
-        $ResultSet = $this->LeadingModel->elastic_search($query, $queryParams);
+        $raw_results = $this->LeadingModel->elastic_search($query, $queryParams);
 
-        if (is_string($ResultSet)) {
-            return $this->err('Error while doing search: %s', $ResultSet);
+        if (is_string($raw_results)) {
+            return $this->err('Error while doing search: %s', $raw_results);
         }
-        if (!$ResultSet) {
-            return $this->err('Received an invalid ResultSet: %s', $ResultSet);
+        if (!$raw_results) {
+            return $this->err('Received an invalid ResultSet: %s', $raw_results);
         }
 
         $i = 0;
         $cats    = array();
         $results = array();
 
+        foreach ($raw_results as $result) {
+            $this->_enrich($result);
 
-        if (is_array($ResultSet)) {
-            foreach ($ResultSet as $result) {
-                $this->_enrich($result);
+            // Add te response
+            $results[$i] = $result;
+            $cats[$i]    = $result['category'];
 
-                // Add te response
-                $results[$i] = $result;
-                $cats[$i]    = $result['category'];
-
-                $i++;
-            }
-        } else {
-            while (($Result = $ResultSet->current())) {
-                $id     = $Result->getId();
-                $result = array(
-                    'data' => $Result->getData(),
-                    'highlights' => $Result->getHighlights(),
-                    'score' => $Result->getScore(),
-                    'type' => $Result->getType(),
-                    'id' => $id,
-                );
-
-                $this->_enrich($result);
-
-                // Add te response
-                $results[$i] = $result;
-                $cats[$i]    = $result['category'];
-
-                $ResultSet->next();
-                $i++;
-            }
+            $i++;
         }
 
         $response = Set::sort($results, '/category', 'asc');
