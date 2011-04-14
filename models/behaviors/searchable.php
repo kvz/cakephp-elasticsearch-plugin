@@ -13,7 +13,7 @@ class SearchableBehavior extends ModelBehavior {
     public $mapMethods = array(
         '/elastic_search_opt/' => 'opt',
         '/elastic_search/' => 'search',
-        '/elastic_index/' => 'index',
+        '/elastic_fill/' => 'fill',
         '/elastic_enabled/' => 'enabled',
     );
     
@@ -130,25 +130,7 @@ class SearchableBehavior extends ModelBehavior {
         return $results;
     }
 
-    public function ping () {
-        return;
-        // Ping
-        $timeout = 3;
-        if (!($fp = fsockopen($this->Client()->host, $this->Client()->port, $errno, $errstr, $timeout))) {
-            return $this->err(
-                'Unable to establish a connection to %s:%s in %s seconds. %s %s',
-                $this->Client()->host,
-                $this->Client()->port,
-                $timeout,
-                $errno,
-                $errstr
-            );
-        }
-        fclose($fp);
-        return true;
-    }
-
-    public function index () {
+    public function fill () {
         $args = func_get_args();
 
         // Strip model from args if needed
@@ -175,20 +157,17 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Create index
-        list($Index, $Type) = $this->indexAndType($Model, true);
+        $this->_execute($Model, 'DELETE', '');
+        $this->_execute($Model, 'PUT', '');
 
         // Get records
         $Model->Behaviors->attach('Containable');
-
-        if (!$this->ping()) {
-            return false;
-        }
 
         $offset = 0;
         $limit  = $this->opt($Model, 'index_chunksize');
         $count  = 0;
         while (true) {
-            $curCount = $this->_indexChunk($Model, $Index, $Type, $offset, $limit);
+            $curCount = $this->_fillChunk($Model, $offset, $limit);
             $count   += $curCount;
 
             if ($curCount < $limit) {
@@ -198,7 +177,7 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Index needs a moment to be updated
-        $Index->refresh();
+        $this->_execute($Model, 'POST', '_refresh');
 
         return $count;
     }
@@ -212,11 +191,15 @@ class SearchableBehavior extends ModelBehavior {
         return call_user_func($cbProgress, $str);
     }
 
-    protected function _indexChunk ($Model, $Index, $Type, $offset, $limit) {
+    protected function _fillChunk ($Model, $offset, $limit) {
         // Set params
         if (!($params = $this->opt($Model, 'index_find_params'))) {
             $params = array();
         }
+
+        $index_name = $this->opt($Model, 'index_name');
+        $type       = $this->opt($Model, 'type');
+
 
         $primKeyPath = $Model->alias . '/' . $Model->primaryKey;
         $dispKeyPath = $Model->alias . '/' . $Model->displayField;
@@ -285,17 +268,17 @@ class SearchableBehavior extends ModelBehavior {
         if (!method_exists($urlCb[0], $urlCb[1])) {
             $urlCb = false;
         }
-        $Docs  = array();
+        $commands    = "";
         $fake_fields = $this->opt($Model, 'fake_fields');
 
         foreach ($results as $result) {
             if ($isQuery) {
-                $flat = $result;
+                $doc = $result;
             } else {
-                $flat = Set::flatten($result, '/');
+                $doc = Set::flatten($result, '/');
             }
 
-            if (empty($flat[$primKeyPath])) {
+            if (empty($doc[$primKeyPath])) {
                 return $this->err(
                     $Model,
                     'I need at least primary key: %s->%s inside the index data. Please include in the index_find_params',
@@ -304,15 +287,18 @@ class SearchableBehavior extends ModelBehavior {
                 );
             }
 
-            $flat['_id'] = $flat[$primKeyPath];
+            $doc['_index'] = $index_name;
+            $doc['_type'] = $type;
 
-            if (!($flat['_id'] % 100)) {
-                $this->progress($Model, '(compile: @' . $flat['_id'] . ')');
+            $doc['_id'] = $doc[$primKeyPath];
+
+            if (!($doc['_id'] % 100)) {
+                $this->progress($Model, '(compile: @' . $doc['_id'] . ')');
             }
 
-            $flat['_label'] = '';
-            if (array_key_exists($dispKeyPath, $flat)) {
-                $flat['_label'] = $flat[$dispKeyPath];
+            $doc['_label'] = '';
+            if (array_key_exists($dispKeyPath, $doc)) {
+                $doc['_label'] = $doc[$dispKeyPath];
             }
 
             // FakeFields
@@ -320,49 +306,51 @@ class SearchableBehavior extends ModelBehavior {
                 foreach ($fake_fields as $fake_field => $xPaths) {
                     $concats = array();
                     foreach ($xPaths as $xPath) {
-                        if (array_key_exists($xPath, $flat)) {
-                            $concats[] = $flat[$xPath];
+                        if (array_key_exists($xPath, $doc)) {
+                            $concats[] = $doc[$xPath];
                         } else {
                             $concats[] = $xPath;
                         }
                     }
 
-                    $flat[$fake_field] = join(' ', $concats);
+                    $doc[$fake_field] = join(' ', $concats);
                 }
             }
 
-            $flat['_descr'] = '';
-            if ($descKeyPath && array_key_exists($descKeyPath, $flat)) {
-                $flat['_descr'] = $flat[$descKeyPath];
+            $doc['_descr'] = '';
+            if ($descKeyPath && array_key_exists($descKeyPath, $doc)) {
+                $doc['_descr'] = $doc[$descKeyPath];
             }
 
 
-            $flat['_model'] = $Model->name;
+            $doc['_model'] = $Model->name;
             if (!@$Model->titlePlu) {
                 if (!@$Model->title) {
-                    $Model->title = Inflector::humanize(Inflector::underscore($flat['_model']));
+                    $Model->title = Inflector::humanize(Inflector::underscore($doc['_model']));
                 }
                 $Model->titlePlu = Inflector::pluralize($Model->title);
             }
-            $flat['_model_title'] = $Model->titlePlu;
+            $doc['_model_title'] = $Model->titlePlu;
 
-            $flat['_url']   = '';
+            $doc['_url']   = '';
             if (is_array($urlCb)) {
-                $flat['_url'] = call_user_func($urlCb, $flat['_id'], $flat['_model']);
+                $doc['_url'] = call_user_func($urlCb, $doc['_id'], $doc['_model']);
             }
 
-
-            $Doc    = new Elastica_Document($flat['_id'], $flat);
-            $Docs[] = $Doc;
+            $commands .= json_encode(array('create' => $doc, )) . "\n";
         }
 
         $this->progress($Model, '(store)' . "\n");
-        if (!$Type->addDocuments($Docs)) {
+
+        if (is_string(($err = $this->_execute($Model, 'POST', '_bulk', $commands, array('prefix' => '', ))))) {
             return $this->err(
                 $Model,
-                'Unable to add %s items',
-                $count
+                'Unable to add %s items. %s',
+                $count,
+                $err
             );
+        } else {
+            $this->progress($Model, json_encode($err). "\n");
         }
 
         return $count;
@@ -384,14 +372,22 @@ class SearchableBehavior extends ModelBehavior {
         return $queryParams;
     }
 
-    protected function _execute ($Model, $method, $path, $payload) {
+    protected function _execute ($Model, $method, $path, $payload = array(), $options = array()) {
+        if (!array_key_exists('prefix', $options)) $options['prefix'] = null;
+
         $conn = curl_init();
 
-        $base = $this->opt($Model, 'index_name');
-        if (!$Model->fullIndex) {
-            $base .= '/' . $this->opt($Model, 'type');
+        if ($options['prefix'] !== null) {
+            $prefix = $options['prefix'];
+        } else {
+            $prefix = $this->opt($Model, 'index_name');
+            if (!$Model->fullIndex) {
+                $prefix .= '/' . $this->opt($Model, 'type');
+            }
+            $prefix .= '/';
         }
-        $path = $base . '/' . $path;
+
+        $path = $path;
 
 		$uri = sprintf(
             'http://%s:%s/%s',
@@ -400,8 +396,10 @@ class SearchableBehavior extends ModelBehavior {
             $path
         );
 
+        pr(compact('method', 'uri'));
+
 		curl_setopt($conn, CURLOPT_URL, $uri);
-		curl_setopt($conn, CURLOPT_TIMEOUT, 300);
+		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
 		curl_setopt($conn, CURLOPT_PORT, $this->opt($Model, 'port'));
 		curl_setopt($conn, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
@@ -425,7 +423,7 @@ class SearchableBehavior extends ModelBehavior {
             return sprintf('Invalid response from elasticsearch server (%s)', $json);
         }
         if (@$response['error']) {
-            return sprintf($Model, 'Error from elasticsearch server (%s)', @$response['error']);
+            return sprintf('Error from elasticsearch server (%s)', @$response['error']);
         }
 
         return $response;
@@ -546,6 +544,7 @@ class SearchableBehavior extends ModelBehavior {
         ));
 
         if (!array_key_exists($key, $this->_fields)) {
+            // @todo Persist
             $this->_fields[$key] = $this->__allFields($Model);
         }
 

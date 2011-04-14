@@ -1,13 +1,5 @@
 <?php
-/**
- * cd vendors/
- * git clone https://github.com/ruflin/Elastica.git
- * # was made with commit @ 5cfcab6
- *
- */
 require_once dirname(__FILE__) . '/templates/true_shell.php';
-TrueShell::createAutoloader(dirname(dirname(__FILE__)) . '/Elastica/lib', 'Elastica_');
-App::import('Lib', 'Elasticsearch.Elasticsearch');
 class IndexerShell extends TrueShell {
 	public $tasks = array();
 
@@ -27,7 +19,7 @@ class IndexerShell extends TrueShell {
 
         foreach ($Models as $Model) {
             $this->info('> Indexing %s', $Model->name);
-            if (false === ($count = $Model->elastic_index($cbProgress))) {
+            if (false === ($count = $Model->elastic_fill($cbProgress))) {
                 return $this->err(
                     'Error indexing model: %s. errors: %s',
                     $Model->name,
@@ -63,16 +55,12 @@ class IndexerShell extends TrueShell {
                 return $this->err('Can\'t instantiate model: %s', $modelName);
             }
 
-            $ResultSet = $Model->elastic_search($query);
-
-            if (is_string($ResultSet)) {
-                $this->crit($ResultSet);
+            $raw_results = $Model->elastic_search($query);
+            if (is_string($raw_results)) {
+                $this->crit($raw_results);
             }
 
-            while (($Result = $ResultSet->current())) {
-                print_r(compact('Result', 'query'));
-                $ResultSet->next();
-            }
+            pr(compact('raw_results'));
         }
     }
 

@@ -104,7 +104,7 @@ class SearcherComponent extends Object {
         $str = $format;
         if (count($arguments)) {
             foreach($arguments as $k => $v) {
-                $arguments[$k] = is_scalar($v) ? $v : json_decode($v);
+                $arguments[$k] = is_scalar($v) ? $v : json_encode($v);
             }
             $str = vsprintf($str, $arguments);
         }

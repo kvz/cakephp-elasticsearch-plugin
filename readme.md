@@ -15,25 +15,14 @@ This plugin provides
    search actions on enabled models. Will return results in JSON format for easy
    AJAX integration.
 
-Uses [ruflin's Elastica PHP library](https://github.com/ruflin/Elastica) to connect
-to Elasticsearch.
-
 ## Installation
+
+You'll need the PHP curl libraries installed.
 
 ### Server
 
 On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-elasticsearch-on-debian.html)
 
-### PHP Client
-    
-    [ -d /var/git ] || mkdir -p /var/git
-    cd /var/git
-    [ -d elastica/.git ] || git clone git://github.com/ruflin/Elastica.git elastica
-    cd elastica
-    git fetch origin
-    git checkout f9654f9 # Tested & compatible
-    ln -nfs /var/git/elastica/lib/Elastica /usr/share/php/Elastica
-    
 ### CakePHP Plugin
 
 As a fake submodule
@@ -84,9 +73,9 @@ app/models/ticket.php (with raw sql for huge datasets)
                     `tickets`.`created` AS \'Ticket/created\',
                     `customers`.`customer_id` AS \'Customer/customer_id\',
                     `customers`.`name` AS \'Customer/name\',
-                    `ticket_responses`.`id` AS \'TicketRepsonse/{n}/id\',
-                    `ticket_responses`.`from` AS \'TicketRepsonse/{n}/from\',
-                    `ticket_responses`.`created` AS \'TicketRepsonse/{n}/created\'
+                    `ticket_responses`.`id` AS \'TicketResponse/{n}/id\',
+                    `ticket_responses`.`from` AS \'TicketResponse/{n}/from\',
+                    `ticket_responses`.`created` AS \'TicketResponse/{n}/created\'
                 FROM `tickets`
                 LEFT JOIN `ticket_responses` ON `ticket_responses`.`ticket_id` = `tickets.id`
                 LEFT JOIN `customers` ON `customers`.`customer_id` = `tickets`.`customer_id`
