@@ -126,7 +126,7 @@ class SearchableBehavior extends ModelBehavior {
 
         $save    = array();
         $elastic = array();
-        if (($id = $data[$Model->primaryKey])) {
+        if (($id = @$data[$Model->primaryKey])) {
             // Update
             if (($res = $this->execute($Model, 'GET', $id)) && is_array(@$res['_source'])) {
                 foreach ($res['_source'] as $k => $v) {
@@ -143,7 +143,12 @@ class SearchableBehavior extends ModelBehavior {
             $Model->alias => Set::merge($elastic, $data)
         );
         $save = Set::flatten($save, '/');
-        $res  = $this->execute($Model, 'PUT', $id, $save);
+        $res  = $this->execute($Model, 'PUT', $id ? $id : $Model->id, $save);
+
+
+        // @todo Probably replace using $this->data with index logic from behaviors's config
+        // this will make sure the model's childs are indexed as well.
+//        prd(compact('elastic', 'data', 'save', 'res', 'id'));
 
         return true;
     }
