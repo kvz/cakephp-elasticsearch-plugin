@@ -59,8 +59,8 @@ class SearcherComponent extends Object {
         if (is_string($raw_results)) {
             return $this->err('Error while doing search: %s', $raw_results);
         }
-        if (!$raw_results) {
-            return $this->err('Received an invalid ResultSet: %s', $raw_results);
+        if (!is_array($raw_results)) {
+            return $this->err('Received invalid raw_results: %s', $raw_results);
         }
 
         $i = 0;

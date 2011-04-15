@@ -157,7 +157,7 @@ app/models/ticket.php (full example)
                     ),
                 ),
             ),
-            'auto_update' => false,
+            'realtime_update' => false,
             'error_handler' => 'php',
             'static_url_generator' => array('{model}', 'url'),
             'enforce' => array(
@@ -264,7 +264,7 @@ Assuming you have included that library, and have an input field with attributes
 
 ## Todo
 
- - auto_update
+ - realtime_update
 
 ## Useful commands
 

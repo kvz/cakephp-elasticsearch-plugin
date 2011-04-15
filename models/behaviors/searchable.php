@@ -36,7 +36,7 @@ class SearchableBehavior extends ModelBehavior {
         'searcher_action' => 'searcher',
         'searcher_param' => 'q',
         'searcher_serializer' => 'json_encode',
-        'auto_update' => false,
+        'realtime_update' => true,
         'cb_progress' => false,
         'limit' => 10,
         'index_find_params' => array(),
@@ -116,19 +116,44 @@ class SearchableBehavior extends ModelBehavior {
         return $models;
     }
 
-    public function beforeSave ($Model) {
-        if ($this->opt($Model, 'auto_update')) {
-            prd('@todo');
+    public function afterSave ($Model) {
+        if (!$this->opt($Model, 'realtime_update')) {
+            return true;
         }
+        if (!($data = @$Model->data[$Model->alias])) {
+            return true;
+        }
+
+        $save    = array();
+        $elastic = array();
+        if (($id = $data[$Model->primaryKey])) {
+            // Update
+            if (($res = $this->execute($Model, 'GET', $id)) && is_array(@$res['_source'])) {
+                foreach ($res['_source'] as $k => $v) {
+                    if (substr($k, 0, ($p = strlen($Model->alias) + 1)) === ($Model->alias . '/')) {
+                        if (($remain = substr($k, $p)) && false === strpos($remain, '/')) {
+                            $elastic[$remain] = $v;
+                        }
+                    }
+                }
+            }
+        }
+        
+        $save = array(
+            $Model->alias => Set::merge($elastic, $data)
+        );
+        $save = Set::flatten($save, '/');
+        $res  = $this->execute($Model, 'PUT', $id, $save);
+
         return true;
     }
 
-    public function afterFind ($Model, $results, $primary) {
-        if ($this->opt($Model, 'auto_update')) {
-            prd('@todo');
-        }
-        return $results;
-    }
+//    public function afterFind ($Model, $results, $primary) {
+//        if ($this->opt($Model, 'realtime_update')) {
+//            prd('@todo');
+//        }
+//        return $results;
+//    }
 
     public function fill () {
         $args = func_get_args();
