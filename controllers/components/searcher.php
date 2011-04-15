@@ -83,7 +83,6 @@ class SearcherComponent extends Object {
     }
 
     protected function _enrich(&$result) {
-        $result['id']    = @$result['data']['_id'];
         $result['label'] = @$result['data']['_label'];
         $result['descr'] = @$result['data']['_descr'];
         $result['url']   = @$result['data']['_url'];
