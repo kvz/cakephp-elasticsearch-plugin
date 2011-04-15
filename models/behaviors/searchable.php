@@ -157,8 +157,9 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Create index
-        $this->_execute($Model, 'DELETE', '');
-        $this->_execute($Model, 'PUT', '');
+        $u = $this->execute($Model, 'PUT', '', array('fullIndex' => true, ));
+        $d = $this->execute($Model, 'DELETE', '');
+        $o = $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
 
         // Get records
         $Model->Behaviors->attach('Containable');
@@ -177,7 +178,7 @@ class SearchableBehavior extends ModelBehavior {
         }
 
         // Index needs a moment to be updated
-        $this->_execute($Model, 'POST', '_refresh');
+        $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
 
         return $count;
     }
@@ -201,8 +202,12 @@ class SearchableBehavior extends ModelBehavior {
         $type       = $this->opt($Model, 'type');
 
 
-        $primKeyPath = $Model->alias . '/' . $Model->primaryKey;
-        $dispKeyPath = $Model->alias . '/' . $Model->displayField;
+        $primKeyPath  = $Model->alias . '/' . $Model->primaryKey;
+        $labelKeyPath = $Model->alias . '/' . $Model->displayField;
+        if (!empty($Model->labelField)) {
+            $labelKeyPath = $Model->alias . '/' . $Model->labelField;
+        }
+
         $descKeyPath = false;
         if (@$Model->descripField) {
             $descKeyPath = $Model->alias . '/' . @$Model->descripField;
@@ -293,13 +298,15 @@ class SearchableBehavior extends ModelBehavior {
                 '_id' => $doc[$primKeyPath],
             );
 
+            //$doc['_id'] = $doc[$primKeyPath];
+
             if (!($meta['_id'] % 100)) {
                 $this->progress($Model, '(compile: @' . $meta['_id'] . ')');
             }
 
             $doc['_label'] = '';
-            if (array_key_exists($dispKeyPath, $doc)) {
-                $doc['_label'] = $doc[$dispKeyPath];
+            if (array_key_exists($labelKeyPath, $doc)) {
+                $doc['_label'] = $doc[$labelKeyPath];
             }
 
             // FakeFields
@@ -344,17 +351,28 @@ class SearchableBehavior extends ModelBehavior {
 
         $this->progress($Model, '(store)' . "\n");
 
-        if (is_string(($err = $this->_execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
+        if (is_string(($res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
             return $this->err(
                 $Model,
                 'Unable to add %s items. %s',
                 $count,
-                $err
+                $res
             );
-        }
-//        } else {
-//            $this->progress($Model, json_encode($err). "\n");
 //        }
+        } else if (is_array(@$res['items'])) {
+//            foreach ($res['items'] as $i => $payback) {
+//                if (@$payback['create']['error']) {
+//                    printf(
+//                        'Unable to create %s #%s. %s' . "\n",
+//                        $Model->alias,
+//                        @$payback['create']['_id'],
+//                        @$payback['create']['error']
+//                    );
+//                }
+//            }
+        } else {
+            $this->progress($Model, json_encode($res). "\n");
+        }
 
         return $count;
     }
@@ -375,8 +393,9 @@ class SearchableBehavior extends ModelBehavior {
         return $queryParams;
     }
 
-    protected function _execute ($Model, $method, $path, $payload = array(), $options = array()) {
+    public function execute ($Model, $method, $path, $payload = array(), $options = array()) {
         if (!array_key_exists('prefix', $options)) $options['prefix'] = null;
+        if (!array_key_exists('fullIndex', $options)) $options['fullIndex'] = $Model->fullIndex;
 
         $conn = curl_init();
 
@@ -384,13 +403,13 @@ class SearchableBehavior extends ModelBehavior {
             $prefix = $options['prefix'];
         } else {
             $prefix = $this->opt($Model, 'index_name');
-            if (!$Model->fullIndex) {
+            if (!$options['fullIndex']) {
                 $prefix .= '/' . $this->opt($Model, 'type');
             }
             $prefix .= '/';
         }
 
-        $path = $path;
+        $path = $prefix . $path;
 
 		$uri = sprintf(
             'http://%s:%s/%s',
@@ -398,6 +417,8 @@ class SearchableBehavior extends ModelBehavior {
             $this->opt($Model, 'port'),
             $path
         );
+
+//        pr(compact('uri', 'method'));
 
 		curl_setopt($conn, CURLOPT_URL, $uri);
 		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
@@ -509,7 +530,7 @@ class SearchableBehavior extends ModelBehavior {
         $payload = $this->query($LeadingModel, $query, $queryParams);
 
         // Custom Elasticsearch CuRL Job
-        $r = $this->_execute($LeadingModel, 'GET', '_search', $payload);
+        $r = $this->execute($LeadingModel, 'GET', '_search', $payload);
 
         // String means error
         if (is_string($r))  {
@@ -523,7 +544,7 @@ class SearchableBehavior extends ModelBehavior {
                 'score' => $hit['_score'],
                 'id' => $hit['_id'],
                 'type' => $hit['_type'],
-                'highlights' => $hit['highlight'],
+                'highlights' => @$hit['highlight'],
             );
         }
 

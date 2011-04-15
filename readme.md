@@ -269,7 +269,7 @@ Assuming you have included that library, and have an input field with attributes
 ## Useful commands
 
     # Get Status
-    curl -XGET 'http://127.0.0.1:9200/_status?pretty=true'
+    curl -XGET 'http://127.0.0.1:9200/main/_status?pretty=true'
     
     # Dangerous: Delete an entire index
     curl -XDELETE 'http://127.0.0.1:9200/main'
@@ -293,5 +293,11 @@ Assuming you have included that library, and have an input field with attributes
                 "_all" : "**"
             }
         },
-        "size" : 1000
+        "size" : 1000000
     }'
+
+    # Dangerous: Delete an entire type
+    curl -XDELETE 'http://127.0.0.1:9200/main/ticket'
+
+    # Refresh index
+    curl -XPOST 'http://127.0.0.1:9200/main/_refresh'

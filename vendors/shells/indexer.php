@@ -11,6 +11,8 @@ class IndexerShell extends TrueShell {
         $modelName = @$this->args[0];
         if ($modelName === '_all' || !$modelName) {
             $Models = $this->allModels(true);
+            // Purge all
+            $x = $Models[0]->Behaviors->Searchable->execute($Models[0], 'DELETE', '', array('fullIndex' => true, ));
         } else {
             $Models = array(ClassRegistry::init($modelName));
         }
