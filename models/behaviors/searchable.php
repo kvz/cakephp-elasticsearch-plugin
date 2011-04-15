@@ -287,13 +287,14 @@ class SearchableBehavior extends ModelBehavior {
                 );
             }
 
-            $doc['_index'] = $index_name;
-            $doc['_type'] = $type;
+            $meta = array(
+                '_index' => $index_name,
+                '_type' => $type,
+                '_id' => $doc[$primKeyPath],
+            );
 
-            $doc['_id'] = $doc[$primKeyPath];
-
-            if (!($doc['_id'] % 100)) {
-                $this->progress($Model, '(compile: @' . $doc['_id'] . ')');
+            if (!($meta['_id'] % 100)) {
+                $this->progress($Model, '(compile: @' . $meta['_id'] . ')');
             }
 
             $doc['_label'] = '';
@@ -334,24 +335,26 @@ class SearchableBehavior extends ModelBehavior {
 
             $doc['_url']   = '';
             if (is_array($urlCb)) {
-                $doc['_url'] = call_user_func($urlCb, $doc['_id'], $doc['_model']);
+                $doc['_url'] = call_user_func($urlCb, $meta['_id'], $doc['_model']);
             }
 
-            $commands .= json_encode(array('create' => $doc, )) . "\n";
+            $commands .= json_encode(array('create' => $meta)) . "\n";
+            $commands .= json_encode($doc) . "\n";
         }
 
         $this->progress($Model, '(store)' . "\n");
 
-        if (is_string(($err = $this->_execute($Model, 'POST', '_bulk', $commands, array('prefix' => '', ))))) {
+        if (is_string(($err = $this->_execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
             return $this->err(
                 $Model,
                 'Unable to add %s items. %s',
                 $count,
                 $err
             );
-        } else {
-            $this->progress($Model, json_encode($err). "\n");
         }
+//        } else {
+//            $this->progress($Model, json_encode($err). "\n");
+//        }
 
         return $count;
     }
@@ -395,8 +398,6 @@ class SearchableBehavior extends ModelBehavior {
             $this->opt($Model, 'port'),
             $path
         );
-
-        pr(compact('method', 'uri'));
 
 		curl_setopt($conn, CURLOPT_URL, $uri);
 		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
