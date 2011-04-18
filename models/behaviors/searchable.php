@@ -764,7 +764,7 @@ class SearchableBehavior extends ModelBehavior {
 	}
 
 	public function setup ($Model, $settings = array()) {
-		$this->settings[$Model->alias] = Set::merge(
+		$this->settings[$Model->alias] = array_merge(
 			$this->_default,
 			$settings
 		);
