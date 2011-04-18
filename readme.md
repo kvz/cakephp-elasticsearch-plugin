@@ -79,7 +79,9 @@ app/models/ticket.php (with raw sql for huge datasets)
 				FROM `tickets`
 				LEFT JOIN `ticket_responses` ON `ticket_responses`.`ticket_id` = `tickets.id`
 				LEFT JOIN `customers` ON `customers`.`customer_id` = `tickets`.`customer_id`
-				LIMIT {offset},{limit}
+				WHERE 1=1
+					{single_placeholder}
+				{offset_limit_placeholder}
 			',
 		),
 		// ... etc

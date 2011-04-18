@@ -124,41 +124,17 @@ class SearchableBehavior extends ModelBehavior {
 			return true;
 		}
 
-		$save    = array();
-		$elastic = array();
-		if (($id = @$data[$Model->primaryKey])) {
-			// Update
-			if (($res = $this->execute($Model, 'GET', $id)) && is_array(@$res['_source'])) {
-				foreach ($res['_source'] as $k => $v) {
-					if (substr($k, 0, ($p = strlen($Model->alias) + 1)) === ($Model->alias . '/')) {
-						if (($remain = substr($k, $p)) && false === strpos($remain, '/')) {
-							$elastic[$remain] = $v;
-						}
-					}
-				}
-			}
+		if (!($id = @$data[$Model->primaryKey])) {
+			$id = $Model->id;
 		}
 
-		$save = array(
-			$Model->alias => Set::merge($elastic, $data)
-		);
-		$save = Set::flatten($save, '/');
-		$res  = $this->execute($Model, 'PUT', $id ? $id : $Model->id, $save);
+		$res = $this->_fillChunk($Model, null, null, $id);
 
+		// Index needs a moment to be updated
+		$this->execute($Model, 'POST', '_refresh');
 
-		// @todo Probably replace using $this->data with index logic from behaviors's config
-		// this will make sure the model's childs are indexed as well.
-//        prd(compact('elastic', 'data', 'save', 'res', 'id'));
-
-		return true;
+		return !!$res;
 	}
-
-//    public function afterFind ($Model, $results, $primary) {
-//        if ($this->opt($Model, 'realtime_update')) {
-//            prd('@todo');
-//        }
-//        return $results;
-//    }
 
 	public function fill () {
 		$args = func_get_args();
@@ -192,8 +168,6 @@ class SearchableBehavior extends ModelBehavior {
 		$o = $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
 
 		// Get records
-		$Model->Behaviors->attach('Containable');
-
 		$offset = 0;
 		$limit  = $this->opt($Model, 'index_chunksize');
 		$count  = 0;
@@ -222,12 +196,12 @@ class SearchableBehavior extends ModelBehavior {
 		return call_user_func($cbProgress, $str);
 	}
 
-	protected function _fillChunk ($Model, $offset, $limit) {
+	protected function _fillChunk ($Model, $offset, $limit, $id = null) {
 		// Set params
 		if (!($params = $this->opt($Model, 'index_find_params'))) {
 			$params = array();
 		}
-
+		
 		$index_name = $this->opt($Model, 'index_name');
 		$type       = $this->opt($Model, 'type');
 
@@ -245,7 +219,24 @@ class SearchableBehavior extends ModelBehavior {
 
 		$isQuery = is_string($params);
 		if ($isQuery) {
-			$sql = str_replace(array('{offset}', '{limit}'), array($offset, $limit), $params);
+			$sqlLimit = '';
+
+			if ($limit) {
+				$sqlLimit = 'LIMIT ' . $limit;
+			}
+			if ($offset) {
+				$sqlLimit = str_replace('LIMIT ', 'LIMIT ' . $offset .',', $sqlLimit);
+			}
+
+			$sql = $params;
+			$sql = str_replace('{offset_limit_placeholder}', $sqlLimit, $sql);
+			
+			if ($id !== null) {
+				$singleSql = 'AND `' . $Model->useTable . '`.`' . $Model->primaryKey . '` = "' . addslashes($id) . '"';
+				$sql = str_replace('{single_placeholder}', $singleSql, $sql);
+			} else {
+				$sql = str_replace('{single_placeholder}', '', $sql);
+			}
 
 			// Directly addressing datasource cause we don't want
 			// any of Cake's array restructuring. We're going for raw
@@ -270,14 +261,21 @@ class SearchableBehavior extends ModelBehavior {
 			}
 			$count = mysql_num_rows($rawRes);
 		} else {
-			$params['offset'] = $offset;
-			if (empty($params['limit'])) {
-				$params['limit']  = $limit;
+			if ($id) {
+				$params['conditions'][$Model->primaryKey] = $id;
+			} else {
+				$params['offset'] = $offset;
+				if (empty($params['limit'])) {
+					$params['limit'] = $limit;
+				}
+				$this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . ($params['offset']+$params['limit']) . ')');
 			}
 
-			$this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . ($params['offset']+$params['limit']) . ')');
+			if (!$Model->Behaviors->attached('Containable')) {
+				$Model->Behaviors->attach('Containable');
+			}
 			$results = $Model->find('all', $params);
-			$count = count($results);
+			$count   = count($results);
 		}
 
 //        $sources = ConnectionManager::sourceList();
@@ -306,6 +304,7 @@ class SearchableBehavior extends ModelBehavior {
 		$commands    = "";
 		$fake_fields = $this->opt($Model, 'fake_fields');
 
+		$docCount = 0;
 		foreach ($results as $result) {
 			if ($isQuery) {
 				$doc = $result;
@@ -377,19 +376,28 @@ class SearchableBehavior extends ModelBehavior {
 
 			$commands .= json_encode(array('create' => $meta)) . "\n";
 			$commands .= json_encode($doc) . "\n";
+			$docCount++;
 		}
 
 		$this->progress($Model, '(store)' . "\n");
 
-		if (is_string(($res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
+		if ($docCount == 1) {
+			$res = $this->execute($Model, 'PUT', '_bulk', $doc);
+		} else {
+			$res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ));
+		}
+
+		if (is_string($res)) {
 			return $this->err(
 				$Model,
 				'Unable to add %s items. %s',
 				$count,
 				$res
 			);
-//        }
-		} else if (is_array(@$res['items'])) {
+		} else {
+			$this->progress($Model, json_encode($res). "\n");
+		}
+//		} else if (is_array(@$res['items'])) {
 //            foreach ($res['items'] as $i => $payback) {
 //                if (@$payback['create']['error']) {
 //                    printf(
@@ -400,11 +408,8 @@ class SearchableBehavior extends ModelBehavior {
 //                    );
 //                }
 //            }
-		} else {
-			$this->progress($Model, json_encode($res). "\n");
-		}
 
-		return $count;
+		return $docCount;
 	}
 
 	protected function _queryParams ($Model, $queryParams, $keys) {
@@ -448,7 +453,7 @@ class SearchableBehavior extends ModelBehavior {
 			$path
 		);
 
-//        pr(compact('uri', 'method'));
+        pr(compact('uri', 'method', 'payload'));
 
 		curl_setopt($conn, CURLOPT_URL, $uri);
 		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
