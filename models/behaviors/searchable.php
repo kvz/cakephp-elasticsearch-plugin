@@ -453,7 +453,7 @@ class SearchableBehavior extends ModelBehavior {
 			$path
 		);
 
-        pr(compact('uri', 'method', 'payload'));
+//        pr(compact('uri', 'method', 'payload'));
 
 		curl_setopt($conn, CURLOPT_URL, $uri);
 		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
