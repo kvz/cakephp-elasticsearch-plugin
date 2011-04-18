@@ -3,155 +3,155 @@
  * Searchable
  *
  * Copyright (c) 2011 Kevin van Zonneveld (http://kevin.vanzonneveld.net || kvz@php.net)
- * 
+ *
  * @author Kevin van Zonneveld (kvz)
  *
  * Licensed under The MIT License
  * Redistributions of files must retain the above copyright notice.
  */
 class SearchableBehavior extends ModelBehavior {
-    public $mapMethods = array(
-        '/elastic_search_opt/' => 'opt',
-        '/elastic_search/' => 'search',
-        '/elastic_fill/' => 'fill',
-        '/elastic_enabled/' => 'enabled',
-    );
-    
-    protected $_default = array(
-        'highlight' => array(
-            'pre_tags' => array('<em class="highlight">'),
-            'post_tags' => array('</em>'),
-            'fields' => array(
-                '_all' => array(
-                    'fragment_size' => 200,
-                    'number_of_fragments' => 1,
-                ),
-            ),
-        ),
-        'highlight_excludes' => array(
-        ),
-        'fake_fields' => array(),
-        'debug_traces' => false,
-        'searcher_enabled' => true,
-        'searcher_action' => 'searcher',
-        'searcher_param' => 'q',
-        'searcher_serializer' => 'json_encode',
-        'realtime_update' => true,
-        'cb_progress' => false,
-        'limit' => 10,
-        'index_find_params' => array(),
-        'index_name' => 'main',
-        'index_chunksize' => 10000,
-        'static_url_generator' => array('{model}', 'url'),
-        'error_handler' => 'php',
-        'enforce' => array(),
-        'fields' => '_all',
-        'fields_excludes' => array(
-            '_url',
-            '_model',
-            '_label',
-        ),
-    );
+	public $mapMethods = array(
+		'/elastic_search_opt/' => 'opt',
+		'/elastic_search/' => 'search',
+		'/elastic_fill/' => 'fill',
+		'/elastic_enabled/' => 'enabled',
+	);
 
-    public $localFields = array(
-        '_label',
-        '_descr',
-        '_model',
-        '_model_title',
-        '_url',
-    );
+	protected $_default = array(
+		'highlight' => array(
+			'pre_tags' => array('<em class="highlight">'),
+			'post_tags' => array('</em>'),
+			'fields' => array(
+				'_all' => array(
+					'fragment_size' => 200,
+					'number_of_fragments' => 1,
+				),
+			),
+		),
+		'highlight_excludes' => array(
+		),
+		'fake_fields' => array(),
+		'debug_traces' => false,
+		'searcher_enabled' => true,
+		'searcher_action' => 'searcher',
+		'searcher_param' => 'q',
+		'searcher_serializer' => 'json_encode',
+		'realtime_update' => true,
+		'cb_progress' => false,
+		'limit' => 10,
+		'index_find_params' => array(),
+		'index_name' => 'main',
+		'index_chunksize' => 10000,
+		'static_url_generator' => array('{model}', 'url'),
+		'error_handler' => 'php',
+		'enforce' => array(),
+		'fields' => '_all',
+		'fields_excludes' => array(
+			'_url',
+			'_model',
+			'_label',
+		),
+	);
 
-    protected $_Client;
-    protected $_fields = array();
-    public $settings = array();
-    public $errors = array();
+	public $localFields = array(
+		'_label',
+		'_descr',
+		'_model',
+		'_model_title',
+		'_url',
+	);
 
-    protected static $_autoLoaderPrefix = '';
-    public static function createAutoloader ($prefix = '', $path = null) {
-        self::$_autoLoaderPrefix = $prefix;
-        if ($path) {
-            set_include_path(get_include_path() . PATH_SEPARATOR . $path);
-        }
-        spl_autoload_register(array('SearchableBehavior', 'autoloader'));
-    }
-    public static function autoloader ($className) {
-        if (substr($className, 0, strlen(self::$_autoLoaderPrefix)) !== self::$_autoLoaderPrefix) {
-            // Only autoload stuff for which we created this loader
-            #echo 'Not trying to autoload ' . $className. "\n";
-            return;
-        }
+	protected $_Client;
+	protected $_fields = array();
+	public $settings = array();
+	public $errors = array();
 
-        $path = str_replace('_', '/', $className) . '.php';
-        include($path);
-    }
+	protected static $_autoLoaderPrefix = '';
+	public static function createAutoloader ($prefix = '', $path = null) {
+		self::$_autoLoaderPrefix = $prefix;
+		if ($path) {
+			set_include_path(get_include_path() . PATH_SEPARATOR . $path);
+		}
+		spl_autoload_register(array('SearchableBehavior', 'autoloader'));
+	}
+	public static function autoloader ($className) {
+		if (substr($className, 0, strlen(self::$_autoLoaderPrefix)) !== self::$_autoLoaderPrefix) {
+			// Only autoload stuff for which we created this loader
+			#echo 'Not trying to autoload ' . $className. "\n";
+			return;
+		}
 
-    /**
-     * Goes through filesystem and returns all models that have
-     * elasticsearch enabled.
-     *
-     * @return <type>
-     */
-    public static function allModels ($instantiated = false) {
-        $models = array();
-        foreach (glob(MODELS . '*.php') as $filePath) {
-            $base      = basename($filePath, '.php');
-            $modelName = Inflector::classify($base);
+		$path = str_replace('_', '/', $className) . '.php';
+		include($path);
+	}
 
-            // Hacky, but still better than instantiating all Models:
-            $buf = file_get_contents($filePath);
-            if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
-                $Model = ClassRegistry::init($modelName);
-                if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
-                    continue;
-                }
+	/**
+	 * Goes through filesystem and returns all models that have
+	 * elasticsearch enabled.
+	 *
+	 * @return <type>
+	 */
+	public static function allModels ($instantiated = false) {
+		$models = array();
+		foreach (glob(MODELS . '*.php') as $filePath) {
+			$base      = basename($filePath, '.php');
+			$modelName = Inflector::classify($base);
 
-                if ($instantiated) {
-                    $models[] = $Model;
-                } else {
-                    $models[] = $modelName;
-                }
-            }
-        }
+			// Hacky, but still better than instantiating all Models:
+			$buf = file_get_contents($filePath);
+			if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
+				$Model = ClassRegistry::init($modelName);
+				if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
+					continue;
+				}
 
-        return $models;
-    }
+				if ($instantiated) {
+					$models[] = $Model;
+				} else {
+					$models[] = $modelName;
+				}
+			}
+		}
 
-    public function afterSave ($Model) {
-        if (!$this->opt($Model, 'realtime_update')) {
-            return true;
-        }
-        if (!($data = @$Model->data[$Model->alias])) {
-            return true;
-        }
+		return $models;
+	}
 
-        $save    = array();
-        $elastic = array();
-        if (($id = @$data[$Model->primaryKey])) {
-            // Update
-            if (($res = $this->execute($Model, 'GET', $id)) && is_array(@$res['_source'])) {
-                foreach ($res['_source'] as $k => $v) {
-                    if (substr($k, 0, ($p = strlen($Model->alias) + 1)) === ($Model->alias . '/')) {
-                        if (($remain = substr($k, $p)) && false === strpos($remain, '/')) {
-                            $elastic[$remain] = $v;
-                        }
-                    }
-                }
-            }
-        }
-        
-        $save = array(
-            $Model->alias => Set::merge($elastic, $data)
-        );
-        $save = Set::flatten($save, '/');
-        $res  = $this->execute($Model, 'PUT', $id ? $id : $Model->id, $save);
+	public function afterSave ($Model) {
+		if (!$this->opt($Model, 'realtime_update')) {
+			return true;
+		}
+		if (!($data = @$Model->data[$Model->alias])) {
+			return true;
+		}
+
+		$save    = array();
+		$elastic = array();
+		if (($id = @$data[$Model->primaryKey])) {
+			// Update
+			if (($res = $this->execute($Model, 'GET', $id)) && is_array(@$res['_source'])) {
+				foreach ($res['_source'] as $k => $v) {
+					if (substr($k, 0, ($p = strlen($Model->alias) + 1)) === ($Model->alias . '/')) {
+						if (($remain = substr($k, $p)) && false === strpos($remain, '/')) {
+							$elastic[$remain] = $v;
+						}
+					}
+				}
+			}
+		}
+
+		$save = array(
+			$Model->alias => Set::merge($elastic, $data)
+		);
+		$save = Set::flatten($save, '/');
+		$res  = $this->execute($Model, 'PUT', $id ? $id : $Model->id, $save);
 
 
-        // @todo Probably replace using $this->data with index logic from behaviors's config
-        // this will make sure the model's childs are indexed as well.
+		// @todo Probably replace using $this->data with index logic from behaviors's config
+		// this will make sure the model's childs are indexed as well.
 //        prd(compact('elastic', 'data', 'save', 'res', 'id'));
 
-        return true;
-    }
+		return true;
+	}
 
 //    public function afterFind ($Model, $results, $primary) {
 //        if ($this->opt($Model, 'realtime_update')) {
@@ -160,125 +160,125 @@ class SearchableBehavior extends ModelBehavior {
 //        return $results;
 //    }
 
-    public function fill () {
-        $args = func_get_args();
+	public function fill () {
+		$args = func_get_args();
 
-        // Strip model from args if needed
-        if (is_object(@$args[0])) {
-            $Model = array_shift($args);
-        } else {
-            return $this->err('First argument needs to be a model');
-        }
+		// Strip model from args if needed
+		if (is_object(@$args[0])) {
+			$Model = array_shift($args);
+		} else {
+			return $this->err('First argument needs to be a model');
+		}
 
-        // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
-        if (is_string(@$args[0])) {
-            foreach ($this->mapMethods as $pattern => $meth) {
-                if (preg_match($pattern, $args[0])) {
-                    $method = array_shift($args);
-                    break;
-                }
-            }
-        }
-        
-        // cbProgress
-        $cbProgress = array_key_exists(0, $args) ? array_shift($args) : null;
-        if (is_callable($cbProgress)) {
-            $this->opt($Model, 'cb_progress', $cbProgress);
-        }
+		// Strip method from args if needed (e.g. when called via $Model->mappedMethod())
+		if (is_string(@$args[0])) {
+			foreach ($this->mapMethods as $pattern => $meth) {
+				if (preg_match($pattern, $args[0])) {
+					$method = array_shift($args);
+					break;
+				}
+			}
+		}
 
-        // Create index
-        $u = $this->execute($Model, 'PUT', '', array('fullIndex' => true, ));
-        $d = $this->execute($Model, 'DELETE', '');
-        $o = $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
+		// cbProgress
+		$cbProgress = array_key_exists(0, $args) ? array_shift($args) : null;
+		if (is_callable($cbProgress)) {
+			$this->opt($Model, 'cb_progress', $cbProgress);
+		}
 
-        // Get records
-        $Model->Behaviors->attach('Containable');
+		// Create index
+		$u = $this->execute($Model, 'PUT', '', array('fullIndex' => true, ));
+		$d = $this->execute($Model, 'DELETE', '');
+		$o = $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
 
-        $offset = 0;
-        $limit  = $this->opt($Model, 'index_chunksize');
-        $count  = 0;
-        while (true) {
-            $curCount = $this->_fillChunk($Model, $offset, $limit);
-            $count   += $curCount;
+		// Get records
+		$Model->Behaviors->attach('Containable');
 
-            if ($curCount < $limit) {
-                break;
-            }
-            $offset += $limit;
-        }
+		$offset = 0;
+		$limit  = $this->opt($Model, 'index_chunksize');
+		$count  = 0;
+		while (true) {
+			$curCount = $this->_fillChunk($Model, $offset, $limit);
+			$count   += $curCount;
 
-        // Index needs a moment to be updated
-        $this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
+			if ($curCount < $limit) {
+				break;
+			}
+			$offset += $limit;
+		}
 
-        return $count;
-    }
+		// Index needs a moment to be updated
+		$this->execute($Model, 'POST', '_refresh', array('fullIndex' => true, ));
 
-    public function progress ($Model, $str) {
-        $cbProgress = $this->opt($Model, 'cb_progress');
-        if (!is_callable($cbProgress)) {
-            return;
-        }
+		return $count;
+	}
 
-        return call_user_func($cbProgress, $str);
-    }
+	public function progress ($Model, $str) {
+		$cbProgress = $this->opt($Model, 'cb_progress');
+		if (!is_callable($cbProgress)) {
+			return;
+		}
 
-    protected function _fillChunk ($Model, $offset, $limit) {
-        // Set params
-        if (!($params = $this->opt($Model, 'index_find_params'))) {
-            $params = array();
-        }
+		return call_user_func($cbProgress, $str);
+	}
 
-        $index_name = $this->opt($Model, 'index_name');
-        $type       = $this->opt($Model, 'type');
+	protected function _fillChunk ($Model, $offset, $limit) {
+		// Set params
+		if (!($params = $this->opt($Model, 'index_find_params'))) {
+			$params = array();
+		}
+
+		$index_name = $this->opt($Model, 'index_name');
+		$type       = $this->opt($Model, 'type');
 
 
-        $primKeyPath  = $Model->alias . '/' . $Model->primaryKey;
-        $labelKeyPath = $Model->alias . '/' . $Model->displayField;
-        if (!empty($Model->labelField)) {
-            $labelKeyPath = $Model->alias . '/' . $Model->labelField;
-        }
+		$primKeyPath  = $Model->alias . '/' . $Model->primaryKey;
+		$labelKeyPath = $Model->alias . '/' . $Model->displayField;
+		if (!empty($Model->labelField)) {
+			$labelKeyPath = $Model->alias . '/' . $Model->labelField;
+		}
 
-        $descKeyPath = false;
-        if (@$Model->descripField) {
-            $descKeyPath = $Model->alias . '/' . @$Model->descripField;
-        }
+		$descKeyPath = false;
+		if (@$Model->descripField) {
+			$descKeyPath = $Model->alias . '/' . @$Model->descripField;
+		}
 
-        $isQuery = is_string($params);
-        if ($isQuery) {
-            $sql = str_replace(array('{offset}', '{limit}'), array($offset, $limit), $params);
+		$isQuery = is_string($params);
+		if ($isQuery) {
+			$sql = str_replace(array('{offset}', '{limit}'), array($offset, $limit), $params);
 
-            // Directly addressing datasource cause we don't want
-            // any of Cake's array restructuring. We're going for raw
-            // performance here, and we're flattening everything to go
-            // into Elasticsearch anyway
-            $DB = ConnectionManager::getDataSource($Model->useDbConfig);
-            $this->progress($Model, '(select_start: ' . $offset .  '-' . ($offset+$limit) . ')');
-            if (!($rawRes = $DB->execute($sql))) {
-                return $this->err($Model, 'Error in query: %s. %s', $sql, mysql_error());
-            }
-            
-            $results = array();
-            while ($row = mysql_fetch_assoc($rawRes)) {
-                $id = $row[$primKeyPath];
-                if (empty($results[$id])) {
-                    $childCnt = 0;
-                }
-                foreach ($row as $key => $val) {
-                    $results[$id][str_replace('{n}', $childCnt, $key)] = $val;
-                }
-                $childCnt++;
-            }
-            $count = mysql_num_rows($rawRes);
-        } else {
-            $params['offset'] = $offset;
-            if (empty($params['limit'])) {
-                $params['limit']  = $limit;
-            }
+			// Directly addressing datasource cause we don't want
+			// any of Cake's array restructuring. We're going for raw
+			// performance here, and we're flattening everything to go
+			// into Elasticsearch anyway
+			$DB = ConnectionManager::getDataSource($Model->useDbConfig);
+			$this->progress($Model, '(select_start: ' . $offset .  '-' . ($offset+$limit) . ')');
+			if (!($rawRes = $DB->execute($sql))) {
+				return $this->err($Model, 'Error in query: %s. %s', $sql, mysql_error());
+			}
 
-            $this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . ($params['offset']+$params['limit']) . ')');
-            $results = $Model->find('all', $params);
-            $count = count($results);
-        }
+			$results = array();
+			while ($row = mysql_fetch_assoc($rawRes)) {
+				$id = $row[$primKeyPath];
+				if (empty($results[$id])) {
+					$childCnt = 0;
+				}
+				foreach ($row as $key => $val) {
+					$results[$id][str_replace('{n}', $childCnt, $key)] = $val;
+				}
+				$childCnt++;
+			}
+			$count = mysql_num_rows($rawRes);
+		} else {
+			$params['offset'] = $offset;
+			if (empty($params['limit'])) {
+				$params['limit']  = $limit;
+			}
+
+			$this->progress($Model, '(select_start: ' . $params['offset'] .  '-' . ($params['offset']+$params['limit']) . ')');
+			$results = $Model->find('all', $params);
+			$count = count($results);
+		}
 
 //        $sources = ConnectionManager::sourceList();
 //        $logs = array();
@@ -291,105 +291,105 @@ class SearchableBehavior extends ModelBehavior {
 //        endforeach;
 //        prd(compact('logs'));
 
-        if (empty($results)) {
-            return array();
-        }
+		if (empty($results)) {
+			return array();
+		}
 
-        // Add documents
-        $urlCb = $this->opt($Model, 'static_url_generator');
-        if ($urlCb[0] === '{model}') {
-            $urlCb[0] = $Model->name;
-        }
-        if (!method_exists($urlCb[0], $urlCb[1])) {
-            $urlCb = false;
-        }
-        $commands    = "";
-        $fake_fields = $this->opt($Model, 'fake_fields');
+		// Add documents
+		$urlCb = $this->opt($Model, 'static_url_generator');
+		if ($urlCb[0] === '{model}') {
+			$urlCb[0] = $Model->name;
+		}
+		if (!method_exists($urlCb[0], $urlCb[1])) {
+			$urlCb = false;
+		}
+		$commands    = "";
+		$fake_fields = $this->opt($Model, 'fake_fields');
 
-        foreach ($results as $result) {
-            if ($isQuery) {
-                $doc = $result;
-            } else {
-                $doc = Set::flatten($result, '/');
-            }
+		foreach ($results as $result) {
+			if ($isQuery) {
+				$doc = $result;
+			} else {
+				$doc = Set::flatten($result, '/');
+			}
 
-            if (empty($doc[$primKeyPath])) {
-                return $this->err(
-                    $Model,
-                    'I need at least primary key: %s->%s inside the index data. Please include in the index_find_params',
-                    $Model->alias,
-                    $Model->primaryKey
-                );
-            }
+			if (empty($doc[$primKeyPath])) {
+				return $this->err(
+					$Model,
+					'I need at least primary key: %s->%s inside the index data. Please include in the index_find_params',
+					$Model->alias,
+					$Model->primaryKey
+				);
+			}
 
-            $meta = array(
-                '_index' => $index_name,
-                '_type' => $type,
-                '_id' => $doc[$primKeyPath],
-            );
+			$meta = array(
+				'_index' => $index_name,
+				'_type' => $type,
+				'_id' => $doc[$primKeyPath],
+			);
 
-            //$doc['_id'] = $doc[$primKeyPath];
+			//$doc['_id'] = $doc[$primKeyPath];
 
-            if (!($meta['_id'] % 100)) {
-                $this->progress($Model, '(compile: @' . $meta['_id'] . ')');
-            }
+			if (!($meta['_id'] % 100)) {
+				$this->progress($Model, '(compile: @' . $meta['_id'] . ')');
+			}
 
-            $doc['_label'] = '';
-            if (array_key_exists($labelKeyPath, $doc)) {
-                $doc['_label'] = $doc[$labelKeyPath];
-            }
+			$doc['_label'] = '';
+			if (array_key_exists($labelKeyPath, $doc)) {
+				$doc['_label'] = $doc[$labelKeyPath];
+			}
 
-            // FakeFields
-            if (is_array(reset($fake_fields))) {
-                foreach ($fake_fields as $fake_field => $xPaths) {
-                    $concats = array();
-                    foreach ($xPaths as $xPath) {
-                        if (array_key_exists($xPath, $doc)) {
-                            $concats[] = $doc[$xPath];
-                        } else {
-                            $concats[] = $xPath;
-                        }
-                    }
+			// FakeFields
+			if (is_array(reset($fake_fields))) {
+				foreach ($fake_fields as $fake_field => $xPaths) {
+					$concats = array();
+					foreach ($xPaths as $xPath) {
+						if (array_key_exists($xPath, $doc)) {
+							$concats[] = $doc[$xPath];
+						} else {
+							$concats[] = $xPath;
+						}
+					}
 
-                    $doc[$fake_field] = join(' ', $concats);
-                }
-            }
+					$doc[$fake_field] = join(' ', $concats);
+				}
+			}
 
-            $doc['_descr'] = '';
-            if ($descKeyPath && array_key_exists($descKeyPath, $doc)) {
-                $doc['_descr'] = $doc[$descKeyPath];
-            }
+			$doc['_descr'] = '';
+			if ($descKeyPath && array_key_exists($descKeyPath, $doc)) {
+				$doc['_descr'] = $doc[$descKeyPath];
+			}
 
 
-            $doc['_model'] = $Model->name;
-            if (!@$Model->titlePlu) {
-                if (!@$Model->title) {
-                    $Model->title = Inflector::humanize(Inflector::underscore($doc['_model']));
-                }
-                $Model->titlePlu = Inflector::pluralize($Model->title);
-            }
-            $doc['_model_title'] = $Model->titlePlu;
+			$doc['_model'] = $Model->name;
+			if (!@$Model->titlePlu) {
+				if (!@$Model->title) {
+					$Model->title = Inflector::humanize(Inflector::underscore($doc['_model']));
+				}
+				$Model->titlePlu = Inflector::pluralize($Model->title);
+			}
+			$doc['_model_title'] = $Model->titlePlu;
 
-            $doc['_url']   = '';
-            if (is_array($urlCb)) {
-                $doc['_url'] = call_user_func($urlCb, $meta['_id'], $doc['_model']);
-            }
+			$doc['_url']   = '';
+			if (is_array($urlCb)) {
+				$doc['_url'] = call_user_func($urlCb, $meta['_id'], $doc['_model']);
+			}
 
-            $commands .= json_encode(array('create' => $meta)) . "\n";
-            $commands .= json_encode($doc) . "\n";
-        }
+			$commands .= json_encode(array('create' => $meta)) . "\n";
+			$commands .= json_encode($doc) . "\n";
+		}
 
-        $this->progress($Model, '(store)' . "\n");
+		$this->progress($Model, '(store)' . "\n");
 
-        if (is_string(($res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
-            return $this->err(
-                $Model,
-                'Unable to add %s items. %s',
-                $count,
-                $res
-            );
+		if (is_string(($res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ))))) {
+			return $this->err(
+				$Model,
+				'Unable to add %s items. %s',
+				$count,
+				$res
+			);
 //        }
-        } else if (is_array(@$res['items'])) {
+		} else if (is_array(@$res['items'])) {
 //            foreach ($res['items'] as $i => $payback) {
 //                if (@$payback['create']['error']) {
 //                    printf(
@@ -400,53 +400,53 @@ class SearchableBehavior extends ModelBehavior {
 //                    );
 //                }
 //            }
-        } else {
-            $this->progress($Model, json_encode($res). "\n");
-        }
+		} else {
+			$this->progress($Model, json_encode($res). "\n");
+		}
 
-        return $count;
-    }
+		return $count;
+	}
 
-    protected function _queryParams ($Model, $queryParams, $keys) {
-        foreach ($keys as $key) {
-            if (array_key_exists($key, $queryParams)) {
-                continue;
-            }
-            
-            if (($opt = $this->opt($Model, $key))) {
-                $queryParams[$key] = $opt;
-            } else {
-                $queryParams[$key] = null;
-            }
-        }
-        
-        return $queryParams;
-    }
+	protected function _queryParams ($Model, $queryParams, $keys) {
+		foreach ($keys as $key) {
+			if (array_key_exists($key, $queryParams)) {
+				continue;
+			}
 
-    public function execute ($Model, $method, $path, $payload = array(), $options = array()) {
-        if (!array_key_exists('prefix', $options)) $options['prefix'] = null;
-        if (!array_key_exists('fullIndex', $options)) $options['fullIndex'] = $Model->fullIndex;
+			if (($opt = $this->opt($Model, $key))) {
+				$queryParams[$key] = $opt;
+			} else {
+				$queryParams[$key] = null;
+			}
+		}
 
-        $conn = curl_init();
+		return $queryParams;
+	}
 
-        if ($options['prefix'] !== null) {
-            $prefix = $options['prefix'];
-        } else {
-            $prefix = $this->opt($Model, 'index_name');
-            if (!$options['fullIndex']) {
-                $prefix .= '/' . $this->opt($Model, 'type');
-            }
-            $prefix .= '/';
-        }
+	public function execute ($Model, $method, $path, $payload = array(), $options = array()) {
+		if (!array_key_exists('prefix', $options)) $options['prefix'] = null;
+		if (!array_key_exists('fullIndex', $options)) $options['fullIndex'] = $Model->fullIndex;
 
-        $path = $prefix . $path;
+		$conn = curl_init();
+
+		if ($options['prefix'] !== null) {
+			$prefix = $options['prefix'];
+		} else {
+			$prefix = $this->opt($Model, 'index_name');
+			if (!$options['fullIndex']) {
+				$prefix .= '/' . $this->opt($Model, 'type');
+			}
+			$prefix .= '/';
+		}
+
+		$path = $prefix . $path;
 
 		$uri = sprintf(
-            'http://%s:%s/%s',
-            $this->opt($Model, 'host'),
-            $this->opt($Model, 'port'),
-            $path
-        );
+			'http://%s:%s/%s',
+			$this->opt($Model, 'host'),
+			$this->opt($Model, 'port'),
+			$path
+		);
 
 //        pr(compact('uri', 'method'));
 
@@ -454,7 +454,7 @@ class SearchableBehavior extends ModelBehavior {
 		curl_setopt($conn, CURLOPT_TIMEOUT, 3);
 		curl_setopt($conn, CURLOPT_PORT, $this->opt($Model, 'port'));
 		curl_setopt($conn, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
+		curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
 
 		if (!empty($payload)) {
 			if (is_array($payload)) {
@@ -468,412 +468,412 @@ class SearchableBehavior extends ModelBehavior {
 			curl_setopt($conn, CURLOPT_POSTFIELDS, $content);
 		}
 
-        $json     = curl_exec($conn);
-        $response = json_decode($json, true);
-
-        if (false === $response) {
-            return sprintf('Invalid response from elasticsearch server (%s)', $json);
-        }
-        if (@$response['error']) {
-            return sprintf('Error from elasticsearch server (%s)', @$response['error']);
-        }
-
-        return $response;
-    }
-
-    public function query ($Model, $query, $queryParams) {
-        $queryParams = $this->_queryParams($Model, $queryParams, array(
-            'enforce',
-            'highlight',
-            'limit',
-            'fields',
-        ));
-
-        $payload = array();
-
-        if ($queryParams['highlight']) {
-            $payload['highlight'] = $queryParams['highlight'];
-        }
-        if ($queryParams['limit']) {
-            $payload['size'] = $queryParams['limit'];
-        }
-        if (@$queryParams['sort']) {
-            $payload['sort'] = $queryParams['sort'];
-        }
-
-        $payload['query']['bool']['must'][0]['query_string'] = array(
-            'query' => $query,
-            'use_dis_max' => true,
-        );
-        if (is_array($queryParams['fields'])) {
-            $payload['query']['bool']['must'][0]['query_string']['fields'] = $queryParams['fields'];
-        }
-
-        if ($queryParams['enforce']) {
-            $i = count ($payload['query']['bool']['must']);
-            $payload['query']['bool']['must'][$i]['term'] = $queryParams['enforce'];
-        }
-
-        return $payload;
-    }
-
-    /**
-     * Search. Arguments can be different wether the call is made like
-     *  - $Model->elastic_search, or
-     *  - $this->search
-     * that's why I eat&check away arguments with array_shift
-     *
-     * @return string
-     */
-    public function search () {
-        $args = func_get_args();
-
-        // Strip model from args if needed
-        if (is_object(@$args[0])) {
-            $LeadingModel = array_shift($args);
-        } else if (is_string(@$args[0])) {
-            $LeadingModel = ClassRegistry::init(array_shift($args));
-        }
-        if (empty($LeadingModel)) {
-            return $this->err('First argument needs to be a valid model');
-        }
-
-        // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
-        if (is_string(@$args[0])) {
-            foreach ($this->mapMethods as $pattern => $meth) {
-                if (preg_match($pattern, $args[0])) {
-                    $method = array_shift($args);
-                    break;
-                }
-            }
-        }
-
-        // No query!
-        if (!($query = array_shift($args))) {
-            return;
-        }
-
-        // queryParams
-        $queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
-
-        // Build Query
-        $payload = $this->query($LeadingModel, $query, $queryParams);
-
-        // Custom Elasticsearch CuRL Job
-        $r = $this->execute($LeadingModel, 'GET', '_search', $payload);
-
-        // String means error
-        if (is_string($r))  {
-            return $r;
-        }
-
-        $results = array();
-        foreach ($r['hits']['hits'] as $hit) {
-            $results[] = array(
-                'data' => $hit['_source'],
-                'score' => $hit['_score'],
-                'id' => $hit['_id'],
-                'type' => $hit['_type'],
-                'highlights' => @$hit['highlight'],
-            );
-        }
-
-        return $results;
-    }
-
-    /**
-     * Caching wrapper
-     *
-     * @todo: implement :)
-     *
-     * @param <type> $Model
-     * @return <type>
-     */
-    protected function _allFields ($Model, $unsetFields = null) {
-        $key = join(',', array(
-            $Model->name,
-            $Model->fullIndex,
-        ));
-
-        if (!array_key_exists($key, $this->_fields)) {
-            // @todo Persist
-            $this->_fields[$key] = $this->__allFields($Model);
-        }
-
-        $fields = $this->_fields[$key];
-
-        // Filter
-        if (is_array($unsetFields))  {
-            $fields = array_diff($fields, $unsetFields);
-
-            // Re-order nummerically so this will be a js array != object
-            $fields = array_values($fields);
-        }
-
-        return $fields;
-    }
-
-    protected function __allFields ($Model) {
-        $fields = $this->localFields;
-
-        if ($Model->fullIndex === true) {
-            $Models = SearchableBehavior::allModels(true);
-        } else {
-            $Models = array($Model);
-        }
-
-        foreach ($Models as $Model) {
-            $modelAlias  = $Model->alias;
-            $modelFields = array();
-            $params      = $this->opt($Model, 'index_find_params');
-
-            // If params is a custom query (possible for indexing speed)
-            if (is_string($params)) {
-                $pattern = '/\sAS\s\'(([a-z0-9_\{\}]+)(\/([a-z0-9_\{\}]+))+)\'/i';
-                if (preg_match_all($pattern, $params, $matches)) {
-                    $modelFields = $matches[1];
-                }
-            } else {
-                $flats = Set::flatten($params, '/');
-                foreach ($flats as $flat => $field) {
-                    $flat = '/' . $flat;
-                    if (false !== ($pos = strpos($flat, '/fields'))) {
-                        $flat   = substr($flat, 0, $pos);
-                        $prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
-
-                        if ($prefix === '') {
-                            $prefix = $modelAlias;
-                        }
-
-                        $field  = $prefix . '/' . $field;
-
-                        if (substr($field, 0, 1) === '/') {
-                            $field = substr($field, 1);
-                        }
-
-                        $modelFields[] = $field;
-                    }
-                }
-            }
-
-            // Merge model fields in overall fields, make unique
-            $fields = array_unique(array_merge($fields, $modelFields));
-
-            // Replace {n} with range 0-3. May need to be configurable later on
-            foreach ($fields as $i => $field) {
-                if (false !== strpos($field, '{n}')) {
-                    for ($j = 0; $j <= 3; $j++) {
-                        $fields[] = str_replace('{n}', $j, $field);
-                    }
-                    unset($fields[$i]);
-                }
-            }
-
-            // Re-order nummerically so this will be a js array != object
-            $fields = array_values($fields);
-        }
-
-        return $fields;
-    }
-
-    protected function _filter_fields ($Model, $val) {
-        if ($val === '_all' || empty($val)) {
-            if (!$this->opt($Model, 'fields_excludes')) {
-                $val = '_all';
-            } else {
-                $val = $this->_allFields(
-                    $Model,
-                    $this->opt($Model, 'fields_excludes')
-                );
-            }
-        }
-
-        return $val;
-    }
-
-    protected function _filter_enforce ($Model, $val) {
-        foreach ($val as $k => $v) {
-            if (substr($k, 0 ,1) === '#' && is_array($v)) {
-                $args   = $v;
-                $Class  = array_shift($args);
-                $method = array_shift($args);
-
-                $v = call_user_func_array(array($Class, $method), $args);
-                // If null is returned, effictively remove key from enforce
-                // params
-                if ($v !== null) {
-                    $val[substr($k, 1)] = $v;
-                }
-                unset($val[$k]);
-            }
-        }
-
-        return $val;
-    }
-    
-    /**
-     * Hack so you can now do highlights on '_all'.
-     * Elasticsearch does not support that syntax for highlights yet,
-     * just for queries.
-     *
-     * @param object $Model
-     * @param array  $val
-     *
-     * @return array
-     */
-    protected function _filter_highlight ($Model, $val) {
-        $val = Set::normalize($val);
-
-        if (($params = @$val['fields']['_all'])) {
-            unset($val['fields']['_all']);
-            if (false !== ($k = array_search('_no_all', $val['fields'], true))) {
-                return $val;
-            }
-
-            $fields = $this->_allFields(
-                $Model,
-                $this->opt($Model, 'highlight_excludes')
-            );
-
-            // Copy original parameters to expanded fields
-            if (is_array($fields)) {
-                foreach ($fields as $field) {
-                    $val['fields'][$field] = $params;
-                }
-            }
-
-            // If we exclude fields, exclude them for highlights as well
-            foreach ($this->opt($Model, 'fields_excludes') as $field_exclude) {
-                unset($val['fields'][$field_exclude]);
-            }
-        }
-
-        return $val;
-    }
-
-    public function enabled ($Model, $method) {
-        if ($this->opt($Model, 'searcher_enabled') === false) {
-            return false;
-        }
-        return true;
-    }
-
-    public function setup ($Model, $settings = array()) {
-        $this->settings[$Model->alias] = Set::merge(
-            $this->_default,
-            $settings
-        );
-
-        $DB = new DATABASE_CONFIG();
-
-        $this->settings[$Model->alias]['host'] = $DB->elastic['host'];
-        $this->settings[$Model->alias]['port'] = $DB->elastic['port'];
-
-        //$this->settings[$Model->alias]['index_name'] = $this->opt($Model, 'index_name');
-        $this->settings[$Model->alias]['type'] = Inflector::underscore($Model->alias);
-    }
-
-    public function err ($Model, $format, $arg1 = null, $arg2 = null, $arg3 = null) {
-        $arguments = func_get_args();
-        $Model     = array_shift($arguments);
-        $format    = array_shift($arguments);
-
-        $str = $format;
-        if (count($arguments)) {
-            foreach($arguments as $k => $v) {
-                $arguments[$k] = $this->sensible($v);
-            }
-            $str = vsprintf($str, $arguments);
-        }
-
-        $this->errors[] = $str;
-
-        if (@$this->settings[$Model->alias]['error_handler'] === 'php') {
-            trigger_error($str, E_USER_ERROR);
-        }
-
-        return false;
-    }
-
-    public function sensible ($arguments) {
-        if (is_object($arguments)) {
-            return get_class($arguments);
-        }
-        if (!is_array($arguments)) {
-            if (!is_numeric($arguments) && !is_bool($arguments)) {
-                $arguments = "'" . $arguments . "'";
-            }
-            return $arguments;
-        }
-        $arr = array();
-        foreach ($arguments as $key => $val) {
-            if (is_array($val)) {
-                $val = json_encode($val);
-            } elseif (is_object($val)) {
-                $val = get_class($val);
-            } elseif (!is_numeric($val) && !is_bool($val)) {
-                $val = "'" . $val . "'";
-            }
-
-            if (strlen($val) > 33) {
-                $val = substr($val, 0, 30) . '...';
-            }
-
-            $arr[] = $key . ': ' . $val;
-        }
-        return join(', ', $arr);
-    }
-
-    public function opt () {
-        $args  = func_get_args();
-
-        // Strip model from args if needed
-        if (is_object($args[0])) {
-            $Model = array_shift($args);
-        } else {
-            return $this->err('First argument needs to be a model');
-        }
-
-        // Strip method from args if needed (e.g. when called via $Model->mappedMethod())
-        if (is_string($args[0])) {
-            foreach ($this->mapMethods as $pattern => $meth) {
-                if (preg_match($pattern, $args[0])) {
-                    $method = array_shift($args);
-                    break;
-                }
-            }
-        }
-
-        $count = count($args);
-        $key   = @$args[0];
-        $val   = @$args[1];
-        if ($count > 1) {
-            $this->settings[$Model->alias][$key] = $val;
-        } else if ($count > 0) {
-            if (!array_key_exists($key, $this->settings[$Model->alias])) {
-                return $this->err(
-                    $Model,
-                    'Option %s was not set',
-                    $key
-                );
-            }
-
-            $val = $this->settings[$Model->alias][$key];
-            
-            // Filter with callback
-            $cb = array($this, '_filter_' . $key);
-            if (method_exists($cb[0], $cb[1])) {
-                $val = call_user_func($cb, $Model, $val);
-            }
-
-            return $val;
-        } else {
-            return $this->err(
-                $Model,
-                'Found remaining arguments: %s Opt needs more arguments (1 for Model; 1 more for getting, 2 more for setting)',
-                $args
-            );
-        }
-    }
+		$json     = curl_exec($conn);
+		$response = json_decode($json, true);
+
+		if (false === $response) {
+			return sprintf('Invalid response from elasticsearch server (%s)', $json);
+		}
+		if (@$response['error']) {
+			return sprintf('Error from elasticsearch server (%s)', @$response['error']);
+		}
+
+		return $response;
+	}
+
+	public function query ($Model, $query, $queryParams) {
+		$queryParams = $this->_queryParams($Model, $queryParams, array(
+			'enforce',
+			'highlight',
+			'limit',
+			'fields',
+		));
+
+		$payload = array();
+
+		if ($queryParams['highlight']) {
+			$payload['highlight'] = $queryParams['highlight'];
+		}
+		if ($queryParams['limit']) {
+			$payload['size'] = $queryParams['limit'];
+		}
+		if (@$queryParams['sort']) {
+			$payload['sort'] = $queryParams['sort'];
+		}
+
+		$payload['query']['bool']['must'][0]['query_string'] = array(
+			'query' => $query,
+			'use_dis_max' => true,
+		);
+		if (is_array($queryParams['fields'])) {
+			$payload['query']['bool']['must'][0]['query_string']['fields'] = $queryParams['fields'];
+		}
+
+		if ($queryParams['enforce']) {
+			$i = count ($payload['query']['bool']['must']);
+			$payload['query']['bool']['must'][$i]['term'] = $queryParams['enforce'];
+		}
+
+		return $payload;
+	}
+
+	/**
+	 * Search. Arguments can be different wether the call is made like
+	 *  - $Model->elastic_search, or
+	 *  - $this->search
+	 * that's why I eat&check away arguments with array_shift
+	 *
+	 * @return string
+	 */
+	public function search () {
+		$args = func_get_args();
+
+		// Strip model from args if needed
+		if (is_object(@$args[0])) {
+			$LeadingModel = array_shift($args);
+		} else if (is_string(@$args[0])) {
+			$LeadingModel = ClassRegistry::init(array_shift($args));
+		}
+		if (empty($LeadingModel)) {
+			return $this->err('First argument needs to be a valid model');
+		}
+
+		// Strip method from args if needed (e.g. when called via $Model->mappedMethod())
+		if (is_string(@$args[0])) {
+			foreach ($this->mapMethods as $pattern => $meth) {
+				if (preg_match($pattern, $args[0])) {
+					$method = array_shift($args);
+					break;
+				}
+			}
+		}
+
+		// No query!
+		if (!($query = array_shift($args))) {
+			return;
+		}
+
+		// queryParams
+		$queryParams = array_key_exists(0, $args) ? array_shift($args) : array();
+
+		// Build Query
+		$payload = $this->query($LeadingModel, $query, $queryParams);
+
+		// Custom Elasticsearch CuRL Job
+		$r = $this->execute($LeadingModel, 'GET', '_search', $payload);
+
+		// String means error
+		if (is_string($r))  {
+			return $r;
+		}
+
+		$results = array();
+		foreach ($r['hits']['hits'] as $hit) {
+			$results[] = array(
+				'data' => $hit['_source'],
+				'score' => $hit['_score'],
+				'id' => $hit['_id'],
+				'type' => $hit['_type'],
+				'highlights' => @$hit['highlight'],
+			);
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Caching wrapper
+	 *
+	 * @todo: implement :)
+	 *
+	 * @param <type> $Model
+	 * @return <type>
+	 */
+	protected function _allFields ($Model, $unsetFields = null) {
+		$key = join(',', array(
+			$Model->name,
+			$Model->fullIndex,
+		));
+
+		if (!array_key_exists($key, $this->_fields)) {
+			// @todo Persist
+			$this->_fields[$key] = $this->__allFields($Model);
+		}
+
+		$fields = $this->_fields[$key];
+
+		// Filter
+		if (is_array($unsetFields))  {
+			$fields = array_diff($fields, $unsetFields);
+
+			// Re-order nummerically so this will be a js array != object
+			$fields = array_values($fields);
+		}
+
+		return $fields;
+	}
+
+	protected function __allFields ($Model) {
+		$fields = $this->localFields;
+
+		if ($Model->fullIndex === true) {
+			$Models = SearchableBehavior::allModels(true);
+		} else {
+			$Models = array($Model);
+		}
+
+		foreach ($Models as $Model) {
+			$modelAlias  = $Model->alias;
+			$modelFields = array();
+			$params      = $this->opt($Model, 'index_find_params');
+
+			// If params is a custom query (possible for indexing speed)
+			if (is_string($params)) {
+				$pattern = '/\sAS\s\'(([a-z0-9_\{\}]+)(\/([a-z0-9_\{\}]+))+)\'/i';
+				if (preg_match_all($pattern, $params, $matches)) {
+					$modelFields = $matches[1];
+				}
+			} else {
+				$flats = Set::flatten($params, '/');
+				foreach ($flats as $flat => $field) {
+					$flat = '/' . $flat;
+					if (false !== ($pos = strpos($flat, '/fields'))) {
+						$flat   = substr($flat, 0, $pos);
+						$prefix = str_replace(array('/contain', '/fields', '/limit'), '' , $flat);
+
+						if ($prefix === '') {
+							$prefix = $modelAlias;
+						}
+
+						$field  = $prefix . '/' . $field;
+
+						if (substr($field, 0, 1) === '/') {
+							$field = substr($field, 1);
+						}
+
+						$modelFields[] = $field;
+					}
+				}
+			}
+
+			// Merge model fields in overall fields, make unique
+			$fields = array_unique(array_merge($fields, $modelFields));
+
+			// Replace {n} with range 0-3. May need to be configurable later on
+			foreach ($fields as $i => $field) {
+				if (false !== strpos($field, '{n}')) {
+					for ($j = 0; $j <= 3; $j++) {
+						$fields[] = str_replace('{n}', $j, $field);
+					}
+					unset($fields[$i]);
+				}
+			}
+
+			// Re-order nummerically so this will be a js array != object
+			$fields = array_values($fields);
+		}
+
+		return $fields;
+	}
+
+	protected function _filter_fields ($Model, $val) {
+		if ($val === '_all' || empty($val)) {
+			if (!$this->opt($Model, 'fields_excludes')) {
+				$val = '_all';
+			} else {
+				$val = $this->_allFields(
+					$Model,
+					$this->opt($Model, 'fields_excludes')
+				);
+			}
+		}
+
+		return $val;
+	}
+
+	protected function _filter_enforce ($Model, $val) {
+		foreach ($val as $k => $v) {
+			if (substr($k, 0 ,1) === '#' && is_array($v)) {
+				$args   = $v;
+				$Class  = array_shift($args);
+				$method = array_shift($args);
+
+				$v = call_user_func_array(array($Class, $method), $args);
+				// If null is returned, effictively remove key from enforce
+				// params
+				if ($v !== null) {
+					$val[substr($k, 1)] = $v;
+				}
+				unset($val[$k]);
+			}
+		}
+
+		return $val;
+	}
+
+	/**
+	 * Hack so you can now do highlights on '_all'.
+	 * Elasticsearch does not support that syntax for highlights yet,
+	 * just for queries.
+	 *
+	 * @param object $Model
+	 * @param array  $val
+	 *
+	 * @return array
+	 */
+	protected function _filter_highlight ($Model, $val) {
+		$val = Set::normalize($val);
+
+		if (($params = @$val['fields']['_all'])) {
+			unset($val['fields']['_all']);
+			if (false !== ($k = array_search('_no_all', $val['fields'], true))) {
+				return $val;
+			}
+
+			$fields = $this->_allFields(
+				$Model,
+				$this->opt($Model, 'highlight_excludes')
+			);
+
+			// Copy original parameters to expanded fields
+			if (is_array($fields)) {
+				foreach ($fields as $field) {
+					$val['fields'][$field] = $params;
+				}
+			}
+
+			// If we exclude fields, exclude them for highlights as well
+			foreach ($this->opt($Model, 'fields_excludes') as $field_exclude) {
+				unset($val['fields'][$field_exclude]);
+			}
+		}
+
+		return $val;
+	}
+
+	public function enabled ($Model, $method) {
+		if ($this->opt($Model, 'searcher_enabled') === false) {
+			return false;
+		}
+		return true;
+	}
+
+	public function setup ($Model, $settings = array()) {
+		$this->settings[$Model->alias] = Set::merge(
+			$this->_default,
+			$settings
+		);
+
+		$DB = new DATABASE_CONFIG();
+
+		$this->settings[$Model->alias]['host'] = $DB->elastic['host'];
+		$this->settings[$Model->alias]['port'] = $DB->elastic['port'];
+
+		//$this->settings[$Model->alias]['index_name'] = $this->opt($Model, 'index_name');
+		$this->settings[$Model->alias]['type'] = Inflector::underscore($Model->alias);
+	}
+
+	public function err ($Model, $format, $arg1 = null, $arg2 = null, $arg3 = null) {
+		$arguments = func_get_args();
+		$Model     = array_shift($arguments);
+		$format    = array_shift($arguments);
+
+		$str = $format;
+		if (count($arguments)) {
+			foreach($arguments as $k => $v) {
+				$arguments[$k] = $this->sensible($v);
+			}
+			$str = vsprintf($str, $arguments);
+		}
+
+		$this->errors[] = $str;
+
+		if (@$this->settings[$Model->alias]['error_handler'] === 'php') {
+			trigger_error($str, E_USER_ERROR);
+		}
+
+		return false;
+	}
+
+	public function sensible ($arguments) {
+		if (is_object($arguments)) {
+			return get_class($arguments);
+		}
+		if (!is_array($arguments)) {
+			if (!is_numeric($arguments) && !is_bool($arguments)) {
+				$arguments = "'" . $arguments . "'";
+			}
+			return $arguments;
+		}
+		$arr = array();
+		foreach ($arguments as $key => $val) {
+			if (is_array($val)) {
+				$val = json_encode($val);
+			} elseif (is_object($val)) {
+				$val = get_class($val);
+			} elseif (!is_numeric($val) && !is_bool($val)) {
+				$val = "'" . $val . "'";
+			}
+
+			if (strlen($val) > 33) {
+				$val = substr($val, 0, 30) . '...';
+			}
+
+			$arr[] = $key . ': ' . $val;
+		}
+		return join(', ', $arr);
+	}
+
+	public function opt () {
+		$args  = func_get_args();
+
+		// Strip model from args if needed
+		if (is_object($args[0])) {
+			$Model = array_shift($args);
+		} else {
+			return $this->err('First argument needs to be a model');
+		}
+
+		// Strip method from args if needed (e.g. when called via $Model->mappedMethod())
+		if (is_string($args[0])) {
+			foreach ($this->mapMethods as $pattern => $meth) {
+				if (preg_match($pattern, $args[0])) {
+					$method = array_shift($args);
+					break;
+				}
+			}
+		}
+
+		$count = count($args);
+		$key   = @$args[0];
+		$val   = @$args[1];
+		if ($count > 1) {
+			$this->settings[$Model->alias][$key] = $val;
+		} else if ($count > 0) {
+			if (!array_key_exists($key, $this->settings[$Model->alias])) {
+				return $this->err(
+					$Model,
+					'Option %s was not set',
+					$key
+				);
+			}
+
+			$val = $this->settings[$Model->alias][$key];
+
+			// Filter with callback
+			$cb = array($this, '_filter_' . $key);
+			if (method_exists($cb[0], $cb[1])) {
+				$val = call_user_func($cb, $Model, $val);
+			}
+
+			return $val;
+		} else {
+			return $this->err(
+				$Model,
+				'Found remaining arguments: %s Opt needs more arguments (1 for Model; 1 more for getting, 2 more for setting)',
+				$args
+			);
+		}
+	}
 }
 SearchableBehavior::createAutoloader('Elastica_');
