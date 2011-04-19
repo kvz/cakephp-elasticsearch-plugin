@@ -21,7 +21,7 @@ class SearcherComponent extends Object {
 		$this->Controller = $Controller;
 	}
 
-	public function searchAction () {
+	public function searchAction ($ajax) {
 		if ($this->opt('model') === '_all') {
 			$this->LeadingModel = ClassRegistry::init($this->opt('leading_model'));
 			$this->LeadingModel->fullIndex = true;
@@ -48,9 +48,17 @@ class SearcherComponent extends Object {
 
 		$queryParams = array();
 
+		if ($ajax) {
+			$queryParams['limit'] = 10;
+		}
+
 		$response = $this->search($query, $queryParams);
 
-		return $this->respond($response);
+		if ($ajax) {
+			return $this->respond($response);
+		}
+		$this->Controller->set('results', $response);
+		$this->Controller->render('searcher');
 	}
 
 	public function search ($query, $queryParams) {

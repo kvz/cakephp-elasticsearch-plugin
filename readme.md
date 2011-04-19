@@ -208,7 +208,7 @@ and instruct to search on everything like so:
 			// ... etc
 
 		public function searcher () {
-			$this->Searcher->searchAction();
+			$this->Searcher->searchAction($this->RequestHandler->isAjax());
 		}
 
 One known limitation is that the Elasticsearch plugin will only look at the

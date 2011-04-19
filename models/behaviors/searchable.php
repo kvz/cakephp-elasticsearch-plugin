@@ -38,7 +38,7 @@ class SearchableBehavior extends ModelBehavior {
 		'searcher_serializer' => 'json_encode',
 		'realtime_update' => true,
 		'cb_progress' => false,
-		'limit' => 10,
+		'limit' => 1000,
 		'index_find_params' => array(),
 		'index_name' => 'main',
 		'index_chunksize' => 10000,
