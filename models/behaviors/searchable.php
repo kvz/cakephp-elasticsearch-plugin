@@ -177,6 +177,7 @@ class SearchableBehavior extends ModelBehavior {
 			$count   += $curCount;
 
 			if ($curCount < $limit) {
+				$this->progress($Model, 'Reached curCount ' . $curCount . ' < ' . $limit);
 				break;
 			}
 			$offset += $limit;
@@ -260,7 +261,6 @@ class SearchableBehavior extends ModelBehavior {
 				}
 				$childCnt++;
 			}
-			$count = mysql_num_rows($rawRes);
 		} else {
 			if ($id) {
 				$params['conditions'][$Model->primaryKey] = $id;
@@ -276,7 +276,6 @@ class SearchableBehavior extends ModelBehavior {
 				$Model->Behaviors->attach('Containable');
 			}
 			$results = $Model->find('all', $params);
-			$count   = count($results);
 		}
 
 //        $sources = ConnectionManager::sourceList();
@@ -399,7 +398,7 @@ class SearchableBehavior extends ModelBehavior {
 				$res
 			);
 		} else {
-			$this->progress($Model, json_encode($res). "\n");
+			//$this->progress($Model, json_encode($res). "\n");
 		}
 //		} else if (is_array(@$res['items'])) {
 //            foreach ($res['items'] as $i => $payback) {
