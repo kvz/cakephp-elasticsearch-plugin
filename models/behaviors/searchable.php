@@ -58,6 +58,7 @@ class SearchableBehavior extends ModelBehavior {
 		'_descr',
 		'_model',
 		'_model_title',
+		'_model_titles',
 		'_url',
 	);
 
@@ -361,13 +362,16 @@ class SearchableBehavior extends ModelBehavior {
 
 
 			$doc['_model'] = $Model->name;
+
+			if (!@$Model->title) {
+				$Model->title = Inflector::humanize(Inflector::underscore($doc['_model']));
+			}
+			$doc['_model_title'] = $Model->title;
+
 			if (!@$Model->titlePlu) {
-				if (!@$Model->title) {
-					$Model->title = Inflector::humanize(Inflector::underscore($doc['_model']));
-				}
 				$Model->titlePlu = Inflector::pluralize($Model->title);
 			}
-			$doc['_model_title'] = $Model->titlePlu;
+			$doc['_model_titles'] = $Model->titlePlu;
 
 			$doc['_url']   = '';
 			if (is_array($urlCb)) {
