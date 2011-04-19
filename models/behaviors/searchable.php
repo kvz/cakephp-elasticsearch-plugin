@@ -250,6 +250,8 @@ class SearchableBehavior extends ModelBehavior {
 				return $this->err($Model, 'Error in query: %s. %s', $sql, mysql_error());
 			}
 
+			$sqlCount = mysql_num_rows($rawRes);
+
 			$results = array();
 			while ($row = mysql_fetch_assoc($rawRes)) {
 				$id = $row[$primKeyPath];
@@ -412,7 +414,7 @@ class SearchableBehavior extends ModelBehavior {
 //                }
 //            }
 
-		return $docCount;
+		return @$sqlCount ? @$sqlCount : $docCount;
 	}
 
 	protected function _queryParams ($Model, $queryParams, $keys) {
