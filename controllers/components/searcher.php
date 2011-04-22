@@ -49,7 +49,7 @@ class SearcherComponent extends Object {
 		$queryParams = array();
 
 		if ($ajax) {
-			$queryParams['limit'] = 10;
+			$queryParams['limit'] = 20;
 		}
 
 		$response = $this->search($query, $queryParams);
