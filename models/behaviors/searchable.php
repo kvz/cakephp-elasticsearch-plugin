@@ -395,8 +395,7 @@ class SearchableBehavior extends ModelBehavior {
 		if (is_string($res)) {
 			return $this->err(
 				$Model,
-				'Unable to add %s items. %s',
-				$count,
+				'Unable to add items. %s',
 				$res
 			);
 		} else {
