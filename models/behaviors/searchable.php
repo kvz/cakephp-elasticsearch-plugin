@@ -481,6 +481,9 @@ class SearchableBehavior extends ModelBehavior {
 		$json     = curl_exec($conn);
 		$response = json_decode($json, true);
 
+		if (($e = curl_error($conn))) {
+			return sprintf('Error from elasticsearch server (%s)', $e);
+		}
 		if (false === $response) {
 			return sprintf('Invalid response from elasticsearch server (%s)', $json);
 		}
