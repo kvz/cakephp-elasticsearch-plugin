@@ -94,7 +94,7 @@ class SearchableBehavior extends ModelBehavior {
 	 */
 	public static function allModels ($instantiated = false) {
 		$models = array();
-		foreach (glob(MODELS . '*.php') as $filePath) {
+		foreach (glob(APP . 'Model' . DS . '*.php') as $filePath) {
 			$base      = basename($filePath, '.php');
 			$modelName = Inflector::classify($base);
 
@@ -250,16 +250,18 @@ class SearchableBehavior extends ModelBehavior {
 				return $this->err($Model, 'Error in query: %s. %s', $sql, mysql_error());
 			}
 
-			$sqlCount = mysql_num_rows($rawRes);
+			$sqlCount = $rawRes->rowCount();
 
 			$results = array();
-			while ($row = mysql_fetch_assoc($rawRes)) {
+			while ($row = $rawRes->fetch()) {
 				$id = $row[$primKeyPath];
 				if (empty($results[$id])) {
 					$childCnt = 0;
 				}
 				foreach ($row as $key => $val) {
-					$results[$id][str_replace('{n}', $childCnt, $key)] = $val;
+					if ($key != 'queryString') {
+						$results[$id][str_replace('{n}', $childCnt, $key)] = $val;
+					}
 				}
 				$childCnt++;
 			}
@@ -776,10 +778,10 @@ class SearchableBehavior extends ModelBehavior {
 			$settings
 		);
 
-		$DB = new DATABASE_CONFIG();
+		$DB = ConnectionManager::enumConnectionObjects();
 
-		$this->settings[$Model->alias]['host'] = $DB->elastic['host'];
-		$this->settings[$Model->alias]['port'] = $DB->elastic['port'];
+		$this->settings[$Model->alias]['host'] = $DB['elastic']['host'];
+		$this->settings[$Model->alias]['port'] = $DB['elastic']['port'];
 
 		//$this->settings[$Model->alias]['index_name'] = $this->opt($Model, 'index_name');
 		$this->settings[$Model->alias]['type'] = Inflector::underscore($Model->alias);

@@ -1,5 +1,5 @@
 <?php
-require_once dirname(__FILE__) . '/templates/true_shell.php';
+require_once dirname(__FILE__) . '/TrueShell.php';
 class IndexerShell extends TrueShell {
 	public $tasks = array();
 
@@ -67,8 +67,8 @@ class IndexerShell extends TrueShell {
 	}
 
 	public function allModels ($instantiated = false) {
-		require_once CAKE_CORE_INCLUDE_PATH .'/cake/libs/model/model_behavior.php';
-		require_once dirname(dirname(dirname(__FILE__))) .'/models/behaviors/searchable.php';
+		App::uses('ModelBehavior', 'Model');
+		App::uses('SearchableBehavior', 'Elasticsearch.Model/Behavior');
 		return SearchableBehavior::allModels($instantiated);
 	}
 }

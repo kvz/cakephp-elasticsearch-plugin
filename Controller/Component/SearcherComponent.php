@@ -4,7 +4,7 @@
  *
  * @author    Kevin van Zonneveld <kvz@php.net>
  */
-class SearcherComponent extends Object {
+class SearcherComponent extends Component {
 	public $Controller;
 	public $LeadModel;
 	public $settings = array();
@@ -13,11 +13,13 @@ class SearcherComponent extends Object {
 
 	);
 
+	public function __construct(ComponentCollection $collection, $settings = array()) {
+		$settings = Set::merge($this->_default, $settings);
+
+		parent::__construct($collection, $settings);
+	}
+
 	public function initialize ($Controller, $settings = array()) {
-		$this->settings = Set::merge(
-			$this->_default,
-			$settings
-		);
 		$this->Controller = $Controller;
 	}
 
@@ -69,6 +71,9 @@ class SearcherComponent extends Object {
 		}
 		if (!is_array($raw_results)) {
 			return $this->err('Received invalid raw_results: %s', $raw_results);
+		}
+		if (empty($raw_results)) {
+			return array();
 		}
 
 		$i = 0;
