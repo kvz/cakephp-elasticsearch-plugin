@@ -382,7 +382,7 @@ class SearchableBehavior extends ModelBehavior {
 			}
 
 			$commands .= json_encode(array('create' => $meta)) . "\n";
-			$commands .= json_encode($doc) . "\n";
+			$commands .= $this->_serializeDocument($Model, $doc) . "\n";
 			$docCount++;
 		}
 
@@ -416,6 +416,16 @@ class SearchableBehavior extends ModelBehavior {
 //            }
 
 		return @$sqlCount ? @$sqlCount : $docCount;
+	}
+
+	protected function _serializeDocument ($Model, $content) {
+		$serializer = $this->opt($Model, 'searcher_serializer');
+		if (!is_callable($serializer)) {
+			$content = json_encode($content);
+		} else {
+			$content = call_user_func($serializer, $content);
+		}
+		return $content;
 	}
 
 	protected function _queryParams ($Model, $queryParams, $keys) {
@@ -469,7 +479,7 @@ class SearchableBehavior extends ModelBehavior {
 
 		if (!empty($payload)) {
 			if (is_array($payload)) {
-				$content = json_encode($payload);
+				$content = $this->_serializeDocument($Model, $payload);
 			} else {
 				$content = $payload;
 			}
