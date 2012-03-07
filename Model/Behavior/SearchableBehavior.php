@@ -42,7 +42,7 @@ class SearchableBehavior extends ModelBehavior {
 		'index_find_params' => array(),
 		'index_name' => 'main',
 		'index_chunksize' => 10000,
-		'static_url_generator' => array('{model}', 'url'),
+		'static_url_generator' => array('{model}', 'modelUrl'),
 		'error_handler' => 'php',
 		'enforce' => array(),
 		'fields' => '_all',
