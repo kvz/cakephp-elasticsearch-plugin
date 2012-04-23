@@ -137,20 +137,19 @@ class SearcherComponent extends Component {
 
 		$serializer = $this->mOpt($this->LeadingModel, 'searcher_serializer');
 
-		global $xhprof_on, $TIME_START, $profiler_namespace;
-		if ($xhprof_on) {
+		if (@$GLOBALS['XHPROF_ON'] && @ $GLOBALS['XHPROF_NAMESPACE'] && @$GLOBALS['TIME_START']) {
 			$xhprof_data  = xhprof_disable();
 			$xhprof_runs  = new XHProfRuns_Default();
-			$run_id       = $xhprof_runs->save_run($xhprof_data, $profiler_namespace);
-			$parsetime = number_format(getmicrotime() - $TIME_START, 3);
-			$xhprof = sprintf(
+			$run_id       = $xhprof_runs->save_run($xhprof_data, $GLOBALS['XHPROF_NAMESPACE']);
+			$parsetime    = number_format(getmicrotime() - $GLOBALS['TIME_START'], 3);
+			$xhprof       = sprintf(
 				'http://%s%s/xhprof/xhprof_html/index.php?run=%s&source=%s',
 				$_SERVER['HTTP_HOST'],
 				Configure::read('App.urlpath'),
 				$run_id,
-				$profiler_namespace
+				$GLOBALS['XHPROF_NAMESPACE']
 			);
-		   $response["@" . $parsetime] = $xhprof;
+		   $response['@' . $parsetime] = $xhprof;
 		}
 
 		if (!is_callable($serializer)) {
