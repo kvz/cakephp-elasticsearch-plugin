@@ -28,15 +28,15 @@ On [Debian/Ubuntu](http://www.elasticsearch.org/tutorials/2010/07/02/setting-up-
 As a fake submodule
 
 ```bash
-cd ${YOURAPP}/plugins
+cd ${YOURAPP}/Plugin
 git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git elasticsearch
 ```
 
 As a real submodule
 
 ```bash
-cd ${YOURAPP}/plugins
-git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git plugins/elasticsearch
+cd ${REPO_ROOT}
+git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git ${YOURAPP}/Plugin/elasticsearch
 ```
 
 ## Integration
