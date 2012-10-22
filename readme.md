@@ -254,13 +254,13 @@ From your shell:
 
 ```bash
 # Fill all indexes
-./cake indexer fill
+./cake Elasticsearch.indexer fill _all
 
 # Fill index with tickets
-./cake indexer fill Ticket
+./cake Elasticsearch.indexer fill Ticket
 
 # Try a ticket search from commandline
-./cake indexer search Ticket Hello
+./cake Elasticsearch.indexer search Ticket Hello
 ```
 
 From your browser
