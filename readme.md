@@ -1,3 +1,5 @@
+**Warning. This is the cake1.3 branch. It is no longer maintained.**
+
 Elastic search [was recently used index the Firefox4 twitter stream](http://pedroalves-bi.blogspot.com/2011/03/firefox-4-twitter-and-nosql.html)
 and make it searchable. It's based on Lucene and has a simple JSON based interface
 that you can use to store objects and search through them (for instance even with CURL).
