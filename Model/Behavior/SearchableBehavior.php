@@ -43,7 +43,7 @@ class SearchableBehavior extends ModelBehavior {
 		'index_name' => 'main',
 		'index_chunksize' => 10000,
 		'static_url_generator' => array('{model}', 'modelUrl'),
-		'error_handler' => 'php',
+		'error_handler' => 'disklog',
 		'enforce' => array(),
 		'fields' => '_all',
 		'fields_excludes' => array(
@@ -203,7 +203,7 @@ class SearchableBehavior extends ModelBehavior {
 		if (!($params = $this->opt($Model, 'index_find_params'))) {
 			$params = array();
 		}
-		
+
 		$index_name = $this->opt($Model, 'index_name');
 		$type       = $this->opt($Model, 'type');
 
@@ -232,7 +232,7 @@ class SearchableBehavior extends ModelBehavior {
 
 			$sql = $params;
 			$sql = str_replace('{offset_limit_placeholder}', $sqlLimit, $sql);
-			
+
 			if ($id !== null) {
 				$singleSql = 'AND `' . $Model->useTable . '`.`' . $Model->primaryKey . '` = "' . addslashes($id) . '"';
 				$sql = str_replace('{single_placeholder}', $singleSql, $sql);
@@ -814,6 +814,8 @@ class SearchableBehavior extends ModelBehavior {
 
 		if (@$this->settings[$Model->alias]['error_handler'] === 'php') {
 			trigger_error($str, E_USER_ERROR);
+		} else if (@$this->settings[$Model->alias]['error_handler'] === 'disklog') {
+			CakeLog::error($str);
 		}
 
 		return false;
