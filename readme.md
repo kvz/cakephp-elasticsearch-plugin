@@ -1,4 +1,4 @@
-Elastic search [was recently used index the Firefox4 twitter stream](http://pedroalves-bi.blogspot.com/2011/03/firefox-4-twitter-and-nosql.html)
+Elastic search [was recently used to index the Firefox4 twitter stream](http://pedroalves-bi.blogspot.com/2011/03/firefox-4-twitter-and-nosql.html)
 and make it searchable. It's based on Lucene and has a simple JSON based interface
 that you can use to store objects and search through them (for instance even with CURL).
 
@@ -29,21 +29,21 @@ As a fake submodule
 
 ```bash
 cd ${YOURAPP}/Plugin
-git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git elasticsearch
+git clone git://github.com/kvz/cakephp-elasticsearch-plugin.git Elasticsearch
 ```
 
 As a real submodule
 
 ```bash
 cd ${REPO_ROOT}
-git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git ${YOURAPP}/Plugin/elasticsearch
+git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git ${YOURAPP}/Plugin/Elasticsearch
 ```
 
 ## Integration
 
 ### Database
 
-`app/config/database.php`
+`Config/database.php`
 
 ```php
 <?php
@@ -53,11 +53,12 @@ class DATABASE_CONFIG {
 		'port' => '9200',
 	);
 	// ... etc
+?>
 ```
 
 ### Model
 
-`app/models/ticket.php` (minimal example)
+`Models/Ticket.php` (minimal example)
 
 ```php
 <?php
@@ -66,9 +67,11 @@ public $actsAs = array(
 
 	),
 	// ... etc
+);
+?>
 ```
 
-`app/models/ticket.php` (with raw sql for huge datasets)
+`Models/Ticket.php` (with raw sql for huge datasets)
 
 ```php
 <?php
@@ -96,10 +99,12 @@ public $actsAs = array(
 		',
 	),
 	// ... etc
+);
+?>
 ```
 
 
-`app/models/ticket.php` (full example)
+`Models/Ticket.php` (full example)
 
 ```php
 <?php
@@ -189,6 +194,7 @@ public $actsAs = array(
 		),
 	),
 );
+?>
 ```
 
 ### Controller
@@ -196,13 +202,15 @@ public $actsAs = array(
 To automatically enable a `/<controller>/searcher` url on all models
 that have elastic search enabled, use:
 
-`app/app_controller.php`
+`Controller/AppController.php`
 
 ```php
 <?php
 public $components = array(
 	'Elasticsearch.Searcher',
 	// ... etc
+);
+?>
 ```
 
 This component will only actually fire when the Controller->modelClass
@@ -226,10 +234,13 @@ class SearchersController extends AppController {
 			'leading_model' => 'Ticket',
 		),
 		// ... etc
+	);
 
 	public function searcher () {
 		$this->Searcher->searchAction($this->RequestHandler->isAjax());
 	}
+}
+?>
 ```
 
 One known limitation is that the Elasticsearch plugin will only look at the
