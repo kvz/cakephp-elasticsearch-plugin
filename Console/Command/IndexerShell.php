@@ -1,10 +1,17 @@
 <?php
-require_once dirname(__FILE__) . '/TrueShell.php';
+require_once __DIR__ . '/TrueShell.php';
 class IndexerShell extends TrueShell {
 	public $tasks = array();
 
 	public function nout ($str) {
 		$this->out($str, 0);
+	}
+
+	public function help () {
+		$this->info('Usage: ');
+		$this->info(' fill    [modelname]');
+		$this->info(' search (<modelname>|_all) <query>');
+		$this->info('');
 	}
 
 	public function fill ($modelName = null) {
