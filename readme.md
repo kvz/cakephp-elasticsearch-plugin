@@ -1,3 +1,5 @@
+## About
+
 Elastic search [was recently used to index the Firefox4 twitter stream](http://pedroalves-bi.blogspot.com/2011/03/firefox-4-twitter-and-nosql.html)
 and make it searchable. It's based on Lucene and has a simple JSON based interface
 that you can use to store objects and search through them (for instance even with CURL).
@@ -302,9 +304,9 @@ $(document).ready(function () {
 });
 ```
 
-## Todo
+## Note
 
- - realtime_update
+ - There also is an unmaintained legacy [cakephp 1.3 branch](https://github.com/kvz/cakephp-elasticsearch-plugin/tree/cake-1.3)
 
 ## Useful commands
 
