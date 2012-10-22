@@ -137,7 +137,7 @@ class SearcherComponent extends Component {
 
 		$serializer = $this->mOpt($this->LeadingModel, 'searcher_serializer');
 
-		if (@$GLOBALS['XHPROF_ON'] && @ $GLOBALS['XHPROF_NAMESPACE'] && @$GLOBALS['TIME_START']) {
+		if (@$GLOBALS['XHPROF_ON'] && @$GLOBALS['XHPROF_NAMESPACE'] && @$GLOBALS['TIME_START']) {
 			$xhprof_data  = xhprof_disable();
 			$xhprof_runs  = new XHProfRuns_Default();
 			$run_id       = $xhprof_runs->save_run($xhprof_data, $GLOBALS['XHPROF_NAMESPACE']);
