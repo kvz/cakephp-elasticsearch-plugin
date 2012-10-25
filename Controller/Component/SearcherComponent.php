@@ -40,6 +40,8 @@ class SearcherComponent extends Component {
 			return null;
 		}
 
+
+
 		if (!($query = @$this->Controller->passedArgs[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
 			if (!($query = @$this->Controller->data[$this->mOpt($this->LeadingModel, 'searcher_param')])) {
 				return $this->err(
@@ -51,7 +53,7 @@ class SearcherComponent extends Component {
 		$queryParams = array();
 
 		if ($ajax) {
-			$queryParams['limit'] = 20;
+			$queryParams['limit'] = 100;
 		}
 
 		$response = $this->search($query, $queryParams);
