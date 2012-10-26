@@ -30,7 +30,8 @@ class SearchableBehavior extends ModelBehavior {
 		),
 		'highlight_excludes' => array(
 		),
-		'curl_timeout' => 30,
+		'curl_connect_timeout' => 3,
+		'curl_total_timeout' => 0,
 		'fake_fields' => array(),
 		'debug_traces' => false,
 		'searcher_enabled' => true,
@@ -470,10 +471,10 @@ class SearchableBehavior extends ModelBehavior {
 			$path
 		);
 
-	// pr(compact('uri', 'method', 'payload'));
-
+		// pr(compact('uri', 'method', 'payload'));
 		curl_setopt($conn, CURLOPT_URL, $uri);
-		curl_setopt($conn, CURLOPT_TIMEOUT, $this->opt($Model, 'curl_timeout'));
+		curl_setopt($conn, CURLOPT_CONNECTTIMEOUT, $this->opt($Model, 'curl_connect_timeout'));
+		curl_setopt($conn, CURLOPT_TIMEOUT, $this->opt($Model, 'curl_total_timeout'));
 		curl_setopt($conn, CURLOPT_PORT, $this->opt($Model, 'port'));
 		curl_setopt($conn, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($conn, CURLOPT_CUSTOMREQUEST, $method);
