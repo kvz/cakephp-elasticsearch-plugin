@@ -501,7 +501,7 @@ class SearchableBehavior extends ModelBehavior {
 			return sprintf('Invalid response from elasticsearch server while contacting %s (%s)', $uri, $json);
 		}
 		if (@$response['error']) {
-			if (empty($payload) && $response['error'] === 'ActionRequestValidationException[Validation Failed: 1: no requests added;]') {
+			if ($response['error'] === 'ActionRequestValidationException[Validation Failed: 1: no requests added;]') {
 				return $response;
 			}
 			return sprintf('Error from elasticsearch server while contacting %s (%s)', $uri, @$response['error']);
