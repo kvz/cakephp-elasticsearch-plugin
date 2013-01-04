@@ -312,7 +312,7 @@ $(document).ready(function () {
 
 ```bash
 # Get Status
-curl -XGET 'http://127.0.0.1:9200/main/_status?pretty=true'
+curl -XGET 'http://127.0.0.1:9200/_all/_status?pretty=true'
 
 # Dangerous: Delete an entire index
 curl -XDELETE 'http://127.0.0.1:9200/main'
