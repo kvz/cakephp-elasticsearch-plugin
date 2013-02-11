@@ -119,7 +119,7 @@ class SearchableBehavior extends ModelBehavior {
 		return $models;
 	}
 
-	public function afterSave ($Model) {
+	public function afterSave (Model $Model, $created) {
 		if (!$this->opt($Model, 'realtime_update')) {
 			return true;
 		}
@@ -787,7 +787,7 @@ class SearchableBehavior extends ModelBehavior {
 		return true;
 	}
 
-	public function setup ($Model, $settings = array()) {
+	public function setup (Model $Model, $settings = array()) {
 		$this->settings[$Model->alias] = array_merge(
 			$this->_default,
 			$settings
