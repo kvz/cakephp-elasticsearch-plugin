@@ -97,47 +97,37 @@ class SearchableBehavior extends ModelBehavior {
 	public static function allModels ($instantiated = false) {
 		$models = array();
 		foreach (glob(APP . 'Model' . DS . '*.php') as $filePath) {
-			$base      = basename($filePath, '.php');
-			$modelName = Inflector::classify($base);
-
-			// Hacky, but still better than instantiating all Models:
-			$buf = file_get_contents($filePath);
-			if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
-				$Model = ClassRegistry::init($modelName);
-				if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
-					continue;
-				}
-
-				if ($instantiated) {
-					$models[] = $Model;
-				} else {
-					$models[] = $modelName;
-				}
-			}
+			$models[] = self::_getModel($filePath, $instantiated);
 		}
 		foreach (CakePlugin::loaded() as $plugin) {
 			foreach (glob(CakePlugin::path($plugin) . 'Model' . DS . '*.php') as $filePath) {
-				$base      = basename($filePath, '.php');
-				$modelName = Inflector::classify($base);
-	
-				// Hacky, but still better than instantiating all Models:
-				$buf = file_get_contents($filePath);
-				if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
-					$Model = ClassRegistry::init($plugin . '.' . $modelName);
-					if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
-						continue;
-					}
-	
-					if ($instantiated) {
-						$models[] = $Model;
-					} else {
-						$models[] = $plugin . '.' . $modelName;
-					}
-				}
+				$models[] = self::_getModel($filePath, $instantiated, $plugin);
 			}
 		}
+		return array_values(array_filter($models));
+	}
 
-		return $models;
+	protected static function _getModel($filePath, $instantiated, $plugin = null) {
+		// Hacky, but still better than instantiating all Models:
+		$buf = file_get_contents($filePath);
+		if (false === stripos($buf, 'Elasticsearch.Searchable')) {
+			return false;
+		}
+
+		if ($plugin) {
+			$plugin .= '.';
+		}
+		$base      = basename($filePath, '.php');
+		$modelName = Inflector::classify($base);
+		$Model = ClassRegistry::init($plugin . $modelName);
+		if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
+			return false;
+		}
+
+		if ($instantiated) {
+			return $Model;
+		}
+		return $plugin . $modelName;
 	}
 
 	public function afterSave (Model $Model, $created) {
