@@ -115,6 +115,27 @@ class SearchableBehavior extends ModelBehavior {
 				}
 			}
 		}
+		foreach (CakePlugin::loaded() as $plugin) {
+			foreach (glob(CakePlugin::path($plugin) . 'Model' . DS . '*.php') as $filePath) {
+				$base      = basename($filePath, '.php');
+				$modelName = Inflector::classify($base);
+	
+				// Hacky, but still better than instantiating all Models:
+				$buf = file_get_contents($filePath);
+				if (false !== stripos($buf, 'Elasticsearch.Searchable')) {
+					$Model = ClassRegistry::init($plugin . '.' . $modelName);
+					if (!$Model->Behaviors->attached('Searchable') || !$Model->elastic_enabled()) {
+						continue;
+					}
+	
+					if ($instantiated) {
+						$models[] = $Model;
+					} else {
+						$models[] = $plugin . '.' . $modelName;
+					}
+				}
+			}
+		}
 
 		return $models;
 	}
