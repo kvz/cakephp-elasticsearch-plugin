@@ -135,7 +135,7 @@ class SearchableBehavior extends ModelBehavior {
 					}
 				}
 			}
-                }
+		}
 
 		return $models;
 	}
