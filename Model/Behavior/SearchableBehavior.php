@@ -115,7 +115,7 @@ class SearchableBehavior extends ModelBehavior {
 				}
 			}
 		}
-                foreach (CakePlugin::loaded() as $plugin) {
+		foreach (CakePlugin::loaded() as $plugin) {
 			foreach (glob(CakePlugin::path($plugin) . 'Model' . DS . '*.php') as $filePath) {
 				$base      = basename($filePath, '.php');
 				$modelName = Inflector::classify($base);
