@@ -402,7 +402,7 @@ class SearchableBehavior extends ModelBehavior {
 		$this->progress($Model, '(store)' . "\n");
 
 		if ($docCount == 1) {
-			$res = $this->execute($Model, 'PUT', '_bulk', $doc);
+			$res = $this->execute($Model, 'PUT', $meta['_id'], $doc);
 		} else {
 			$res = $this->execute($Model, 'PUT', '_bulk', $commands, array('prefix' => '', ));
 		}
