@@ -55,24 +55,35 @@ class TrueShell extends Shell {
 		$this->out($level . ': ' . $str);
 		return $str;
 	}
-	public function crit ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
+
+/**
+ * Logging methods
+ *
+ * Altought it says only accepts $message and $newlines it actually supports sprintf syntax
+ *
+ * @param string $format Valid sprintf format
+ * @param mixed $arg1 Argument one
+ * @param mixed $arg2 Argument two
+ * @param mixed $argX Argument X
+ */
+	public function crit ($message = null, $newlines = 1) {
 		$args = func_get_args(); array_unshift($args, __FUNCTION__);
 		$str  = call_user_func_array(array($this, '_log'), $args);
 		trigger_error($str, E_USER_ERROR);
 		exit(1);
 	}
-	public function err ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
+	public function err ($message = null, $newlines = 1) {
 		$args = func_get_args(); array_unshift($args, __FUNCTION__);
 		$str  = call_user_func_array(array($this, '_log'), $args);
 		trigger_error($str, E_USER_ERROR);
 		return false;
 	}
-	public function warn ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
+	public function warn ($message = null, $newlines = 1) {
 		$args = func_get_args(); array_unshift($args, __FUNCTION__);
 		$str  = call_user_func_array(array($this, '_log'), $args);
 		return false;
 	}
-	public function info ($format, $arg1 = null, $arg2 = null, $arg3 = null) {
+	public function info ($message = null, $newlines = 1) {
 		$args = func_get_args(); array_unshift($args, __FUNCTION__);
 		$str  = call_user_func_array(array($this, '_log'), $args);
 		return true;

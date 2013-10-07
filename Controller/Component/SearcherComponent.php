@@ -19,7 +19,7 @@ class SearcherComponent extends Component {
 		parent::__construct($collection, $settings);
 	}
 
-	public function initialize ($Controller, $settings = array()) {
+	public function initialize (Controller $Controller) {
 		$this->Controller = $Controller;
 	}
 
