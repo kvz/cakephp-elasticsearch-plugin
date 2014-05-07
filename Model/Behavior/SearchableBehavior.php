@@ -130,7 +130,7 @@ class SearchableBehavior extends ModelBehavior {
 		return $plugin . $modelName;
 	}
 
-	public function afterSave (Model $Model, $created) {
+	public function afterSave (Model $Model, $created, $options = array()) {
 		if (!$this->opt($Model, 'realtime_update')) {
 			return true;
 		}
