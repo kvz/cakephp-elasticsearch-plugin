@@ -1,0 +1,16 @@
+{
+	"name": "kvz/cakephp-elasticsearch-plugin",
+	"type": "cakephp-plugin",
+	"keywords": ["cakephp", "Elastic", "Search", "ElasticSearch", "ElasticPlugin"],
+	"description": "CakePHP Plugin for ElasticSearch",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Kevin van Zonneveld",
+			"email": "kevin@transloadit.com"
+		}
+	],
+	"require": {
+		"composer/installers": "*"
+	}
+}
