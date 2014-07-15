@@ -1,5 +1,5 @@
 {
-	"name": "kvz/cakephp-elasticsearch-plugin",
+	"name": "aschmechel/elasticsearch",
 	"type": "cakephp-plugin",
 	"keywords": ["cakephp", "Elastic", "Search", "ElasticSearch", "ElasticPlugin"],
 	"description": "CakePHP Plugin for ElasticSearch",
