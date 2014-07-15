@@ -42,7 +42,8 @@ git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git ${YOURAP
 ```
 
 Using composer
-```bash
+
+```javascript
 "require": {
 	"kvz/elasticsearch": "dev-master"
 }
