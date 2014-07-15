@@ -41,6 +41,13 @@ cd ${REPO_ROOT}
 git submodule add git://github.com/kvz/cakephp-elasticsearch-plugin.git ${YOURAPP}/Plugin/Elasticsearch
 ```
 
+Using composer
+```bash
+"require": {
+	"kvz/elasticsearch": "dev-master"
+}
+```
+
 ## Integration
 
 ### Database
